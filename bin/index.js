@@ -27,10 +27,12 @@ db.data ||= { pages: [], tags: [] };
 const { pages, tags } = db.data;
 
 class Page {
-  constructor(id, name, rank, desc, color, tags) {
+  constructor(id, name, desc = "", color = "#000000", tags = []) {
     this.id = id;
     this.name = name;
-    this.rank = rank;
+    this.rank = 0;
+    //starred is a way to display the item above all others
+    this.starred = false;
     this.desc = desc;
     this.color = color;
     this.tags = tags;
@@ -46,14 +48,14 @@ class Tag {
 }
 
 const displayPage = function (page, index = -1) {
-  let returnStr = `${chalk.hex(page.color).bold(page.name)} \t (${chalk.bold(
-    index
-  )})
+  let returnStr = `${chalk.hex(page.color).bold(page.name)} \t (${
+    page.rank > -1 ? chalk.bold(page.rank) : chalk.italic("unranked")
+  })
       ${chalk.italic(page.desc)}
       `;
   let formattedTags = [];
   for (let tagId of page.tags) {
-    const tag = tags[tagId - 1];
+    const tag = tags.find((t) => (t.id = tagId));
     formattedTags.push(`${chalk.bgHex(tag.color).bold(" " + tag.name + " ")}`);
   }
 
@@ -81,9 +83,9 @@ const displayAll = function (reverse = false) {
   return returnStr;
 };
 
-const addPage = function (id, name, rank, desc, color, tags) {
-  pages.push(new Page(id, name, rank, desc, color, tags));
-  db.write();
+const addPage = async function (page) {
+  pages.push(page);
+  await db.write();
 };
 
 const editPage = function (id, name, rank, desc, color, tags) {
@@ -134,11 +136,6 @@ const addPageHandler = async function () {
       type: "input",
       message: "Name?",
     });
-    let rankP = await inquirer.prompt({
-      name: "value",
-      type: "number",
-      message: "Rank?",
-    });
     let descP = await inquirer.prompt({
       name: "value",
       type: "input",
@@ -158,7 +155,6 @@ const addPageHandler = async function () {
     let newPage = new Page(
       id,
       nameP.value,
-      rankP.value,
       descP.value,
       colorP.value,
       tagsP.value
@@ -178,9 +174,8 @@ const addPageHandler = async function () {
         whileLoop = false;
         break;
       case "Yes":
-        pages.push(newPage);
-        db.write();
-        console.log(chalk.redBright("YES pushed new item"));
+        addPage(newPage);
+        console.log(chalk.redBright("pushed new item!"));
         whileLoop = false;
         break;
       case "No - Redo":
@@ -189,18 +184,57 @@ const addPageHandler = async function () {
   }
 };
 
-const picker = function (tags = null) {
+const pickerLogic = async function (pagesArr) {
+  const pickLimit = pagesArr.length - 1;
+  let eliminated;
+  let formattedList = pagesArr.map((p) => {
+    return { name: p.name, value: p };
+  });
+
+  let prompt = await inquirer.prompt({
+    name: "main",
+    type: "checkbox",
+    message: "Select your favorites.",
+    choices: formattedList,
+    async validate(value) {
+      if (value.length <= pickLimit) {
+        return true;
+      }
+      return `Please select less than ${pickLimit}`;
+    },
+  });
+
+  if (prompt.value.length == 1) {
+    prompt.value.rank = Math.max(...pages.map((p) => p.rank)) + 1;
+  } else {
+    pickerLogic(prompt.value);
+  }
+  eliminated = pagesArr.filter((x) => !prompt.value.includes(x));
+  if (eliminated >= 2) {
+    pickerLogic(eliminated);
+  } else {
+    prompt.value.rank = Math.max(...pages.map((p) => p.rank)) + 1;
+  }
+};
+
+const picker = function (restart = false, tags = null) {
   let whileLoop = true;
-  let selectedPages = pages;
+  let selectedPages = [...pages];
   if (tags != null) {
     selectedPages = selectedPages.filter((sp) =>
       sp.tags.some((t) => tags.includes(t))
     );
   }
+  selectedPages.sort(() => Math.random() - 0.5).slice(0, 5);
+
+  if (restart) {
+    for (let page of selectedPages) {
+      page.rank = -1;
+    }
+  }
 
   while (whileLoop) {
-    console.log("o");
-    break;
+    let batch1 = selectedPages.slice();
   }
 };
 
@@ -251,11 +285,23 @@ switch (argv._[0]) {
     }
     break;
   case "init":
-    db.data.pages = [test, best, rest];
+    db.data.pages = [
+      new Page(1, "Final Fantasy VI", "", "#1da1f2", [1, 2, 4]),
+      new Page(2, "Undertale", "", "#8ac76b", [2, 4]),
+      new Page(3, "Persona 5 Royal", "", "#c76b6b", [3, 4]),
+      new Page(4, "Mario", "", "#8ac76b", [2, 4]),
+      new Page(5, "Zelda", "", "#c76b6b", [3, 4]),
+      new Page(6, "Pikmin", "", "#8ac76b", [2, 4]),
+      new Page(7, "Kirby", "", "#c76b6b", [3, 4]),
+      new Page(8, "Deltarune", "", "#c76b6b", [3, 4]),
+      new Page(9, "Baten Kaitos", "", "#8ac76b", [2, 4]),
+      new Page(10, "13 sentinels", "", "#c76b6b", [3, 4]),
+    ];
     db.data.tags = [
-      new Tag(1, "Project", "#AA2FA6"),
-      new Tag(2, "Game", "#0244EB"),
-      new Tag(3, "Study", "#D4152A"),
+      new Tag(1, "Emulation", "#AA2FA6"),
+      new Tag(2, "PC", "#0244EB"),
+      new Tag(3, "Modern Console", "#D4152A"),
+      new Tag(4, "RPG", "#3b5998"),
     ];
     console.log(pages);
     console.log(tags);
