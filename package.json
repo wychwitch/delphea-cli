@@ -1,0 +1,35 @@
+{
+  "name": "delphea-cli",
+  "version": "1.0.0",
+  "description": "A command-line implementation of my delphea idea, since I still have a bit to go to make an MVC site",
+  "main": "./bin/index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wychwitch/delphea-cli.git"
+  },
+  "keywords": [],
+  "bin": {
+    "delphea": "./bin/index.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/wychwitch/delphea-cli/issues"
+  },
+  "homepage": "https://github.com/wychwitch/delphea-cli#readme",
+  "dependencies": {
+    "better-sqlite3": "^7.5.3",
+    "chalk": "^5.0.1",
+    "chalk-animation": "^2.0.2",
+    "figlet": "^1.5.2",
+    "gradient-string": "^2.0.1",
+    "inquirer": "^8.2.4",
+    "lowdb": "^3.0.0",
+    "nanospinner": "^1.1.0",
+    "yargs": "^17.5.1"
+  }
+}
