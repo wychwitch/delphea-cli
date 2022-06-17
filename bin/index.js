@@ -22,12 +22,12 @@ const db = new Low(adapter);
 
 await db.read();
 
-db.data ||= { pages: [], tags: [] };
+db.data ||= { activities: [], tags: [], sheets: [] };
 
-const { pages, tags } = db.data;
+const { activities, tags, sheets } = db.data;
 
-class Page {
-  constructor(id, name, desc = "", color = "#000000", tags = []) {
+class Activity {
+  constructor(id, name, desc = "", color = "#000000", tags = [], sheet = 0) {
     this.id = id;
     this.name = name;
     this.rank = 0;
@@ -36,6 +36,7 @@ class Page {
     this.desc = desc;
     this.color = color;
     this.tags = tags;
+    this.sheet = sheet;
   }
 }
 
@@ -44,6 +45,20 @@ class Tag {
     this.id = id;
     this.name = name;
     this.color = color;
+  }
+}
+
+class Sheet {
+  constructor(id, name, color = "#000000") {
+    this.id = id;
+    this.name = name;
+    this.color = color;
+  }
+
+  get activities() {
+    console.log(activities);
+    console.log(activities.filter((a) => a.sheet === this.id));
+    return activities.filter((a) => a.sheet === this.id);
   }
 }
 //from https://stackoverflow.com/questions/57908133/splitting-an-array-up-into-chunks-of-a-given-size-with-a-minimum-chunk-size
@@ -60,14 +75,18 @@ const chunk = (arr, size, min) => {
   return chunks;
 };
 
-const displayPage = function (page, index = -1) {
-  let returnStr = `${chalk.hex(page.color).bold(page.name)} \t (${
-    page.rank > -1 ? chalk.bold(page.rank) : chalk.italic("unranked")
-  })
-      ${chalk.italic(page.desc)}
-      `;
+const displayActivity = function (activity) {
+  const sheetColor = sheets.find((s) => s.id === activity.sheet).color;
+
+  let returnStr = `${chalk.hex(sheetColor)(
+    activity.rank > 0
+      ? chalk.bold("(" + activity.rank + ")")
+      : "( " + chalk.italic("unranked") + " )"
+  )} ${chalk.hex(activity.color).bold(activity.name)}\n\t${chalk.italic(
+    activity.desc
+  )}\n\t`;
   let formattedTags = [];
-  for (let tagId of page.tags) {
+  for (let tagId of activity.tags) {
     let tag = tags.find((t) => t.id === tagId);
     formattedTags.push(`${chalk.bgHex(tag.color).bold(" " + tag.name + " ")}`);
   }
@@ -75,43 +94,58 @@ const displayPage = function (page, index = -1) {
   return returnStr + formattedTags.join(", ");
 };
 
-const displayAll = function (reverse = false) {
-  const sorted = pages.sort((a, b) => {
+const displaySheet = function (sheet, reverse = false) {
+  const unsortedActs = activities.filter((a) => a.sheet === sheet.id);
+  const sheetActivities = unsortedActs.sort((a, b) => {
     if (reverse) {
       return b.rank - a.rank;
     }
     return a.rank - b.rank;
   });
-  let i = 1;
-  let y = 1;
-  let returnStr = "";
-  if (reverse) {
-    i = pages.length;
-    y = -1;
-  }
-  for (let page of sorted) {
-    returnStr += `\n${displayPage(page, i)}`;
-    i += y;
+
+  let returnStr = `\n${chalk.hex(sheet.color).bold(
+    figlet.textSync(sheet.name, {
+      font: "big",
+      horizontalLayout: "default",
+      verticalLayout: "default",
+    })
+  )}\n`;
+  for (let activity of sheetActivities) {
+    returnStr += `\n${displayActivity(activity)}`;
   }
   return returnStr;
 };
 
-const addPage = async function (page) {
-  pages.push(page);
+const displayAll = function (grouped = true, reverse = false) {
+  let returnStr = "";
+  if (grouped) {
+    for (let sheet of sheets) {
+      returnStr += displaySheet(sheet, reverse);
+    }
+  } else {
+    for (let activity of activities) {
+      returnStr += displayActivity(activity);
+    }
+  }
+  return returnStr;
+};
+
+const addActivity = async function (activity) {
+  activities.push(activity);
   await db.write();
 };
 
-const editPage = function (id, name, rank, desc, color, tags) {
-  let i = pages.findIndex((p) => p.id == id);
-  pages[i].name = name;
-  pages[i].rank = rank;
-  pages[i].desc = desc;
-  pages[i].color = color;
-  pages[i].tags = tags;
+const editActivity = function (id, name, rank, desc, color, tags) {
+  let i = activities.findIndex((p) => p.id == id);
+  activities[i].name = name;
+  activities[i].rank = rank;
+  activities[i].desc = desc;
+  activities[i].color = color;
+  activities[i].tags = tags;
   db.write();
 };
 
-const editPageHandler = async function () {
+const editActivityHandler = async function () {
   let name = await inquirer.prompt({
     name: "",
     type: "list",
@@ -140,44 +174,78 @@ const tagListBuilder = function () {
   return choices;
 };
 
-const addPageHandler = async function () {
+const sheetListBuilder = function () {
+  let choices = [];
+  for (let sheet of sheets) {
+    choices.push({
+      name: ` ${chalk.bgHex(sheet.color)(sheet.name)} `,
+      value: sheet.id,
+    });
+  }
+  return choices;
+};
+
+const addActivityHandler = async function () {
   let whileLoop = true;
-  const id = Math.max(...pages.map((p) => p.id));
+  const id = Math.max(...activities.map((p) => p.id));
   while (whileLoop) {
-    let nameP = await inquirer.prompt({
-      name: "value",
-      type: "input",
-      message: "Name?",
-    });
-    let descP = await inquirer.prompt({
-      name: "value",
-      type: "input",
-      message: "Description?",
-    });
-    let colorP = await inquirer.prompt({
-      name: "value",
-      type: "input",
-      message: "Color?",
-    });
-    let tagsP = await inquirer.prompt({
-      name: "value",
-      type: "checkbox",
-      message: "Tags?",
-      choices: tagListBuilder(),
-    });
-    let newPage = new Page(
+    let activityPrompt = await inquirer.prompt([
+      {
+        name: "name",
+        type: "input",
+        message: "Name?",
+        async validate(value) {
+          if (value.length > 0) {
+            return true;
+          }
+          return `Please enter a name.`;
+        },
+      },
+      {
+        name: "desc",
+        type: "input",
+        message: "Description?",
+      },
+      {
+        name: "color",
+        type: "input",
+        message: "Color?",
+        default: "#FFFFFF",
+      },
+      {
+        name: "tags",
+        type: "checkbox",
+        message: "Tags?",
+        choices: tagListBuilder(),
+      },
+      {
+        name: "sheet",
+        type: "list",
+        message: "Sheet?",
+        choices: sheetListBuilder(),
+      },
+      {
+        name: "starred",
+        type: "confirm",
+        message: "Star?",
+        default: false,
+      },
+    ]);
+
+    let newActivity = new Activity(
       id,
-      nameP.value,
-      descP.value,
-      colorP.value,
-      tagsP.value
+      activityPrompt.name,
+      activityPrompt.desc,
+      activityPrompt.color,
+      activityPrompt.tags,
+      activityPrompt.sheet
     );
 
     let prompt = await inquirer.prompt({
       name: "value",
       type: "list",
       message: `Is this correct?
-        ${displayPage(newPage)}
+        ${displayActivity(newActivity)}
       `,
       choices: ["Yes", "No - Redo", "No - Go Back"],
     });
@@ -187,7 +255,7 @@ const addPageHandler = async function () {
         whileLoop = false;
         break;
       case "Yes":
-        addPage(newPage);
+        addActivity(newActivity);
         console.log(chalk.redBright("pushed new item!"));
         whileLoop = false;
         break;
@@ -197,10 +265,10 @@ const addPageHandler = async function () {
   }
 };
 
-const pickerPrompt = async function (pagesArr) {
-  const pickLimit = pagesArr.length - 1;
+const pickerPrompt = async function (activitiesArr) {
+  const pickLimit = activitiesArr.length - 1;
 
-  let formattedList = pagesArr.map((p) => {
+  let formattedList = activitiesArr.map((p) => {
     return { name: p.name, value: p };
   });
 
@@ -220,52 +288,52 @@ const pickerPrompt = async function (pagesArr) {
   return await prompt.value;
 };
 
-const pickerLogic = async function (pagesArr) {
+const pickerLogic = async function (activitiesArr) {
   let eliminated;
   let winners = [];
 
-  if (pagesArr.length > 5) {
-    let chunkedPages = chunk(pagesArr, 5, 2);
-    for (let chunk of chunkedPages) {
+  if (activitiesArr.length > 5) {
+    let chunkedActivities = chunk(activitiesArr, 5, 2);
+    for (let chunk of chunkedActivities) {
       let result = await pickerPrompt(chunk);
       winners.push(...result);
     }
   } else {
-    winners = await pickerPrompt(pagesArr);
+    winners = await pickerPrompt(activitiesArr);
   }
 
   if (winners.length === 1) {
-    pages.find((p) => p.id === winners[0].id).rank =
-      Math.max(...pages.map((p) => p.rank)) + 1;
+    activities.find((p) => p.id === winners[0].id).rank =
+      Math.max(...activities.map((p) => p.rank)) + 1;
   } else {
     await pickerLogic(winners);
   }
 
-  eliminated = pagesArr.filter((x) => !winners.includes(x));
+  eliminated = activitiesArr.filter((x) => !winners.includes(x));
 
   // console.log(eliminated);
 
   if (eliminated.length >= 2) {
     await pickerLogic(eliminated);
   } else {
-    eliminated[0].rank = Math.max(...pagesArr.map((p) => p.rank)) + 1;
+    eliminated[0].rank = Math.max(...activitiesArr.map((p) => p.rank)) + 1;
   }
 };
 
-const picker = async function (tags = null) {
-  let selectedPages = [...pages];
+const picker = async function (sheet, tags = null) {
+  let selectedActivities = activities.filter((a) => a.sheet === sheet.id);
   if (tags != null) {
-    selectedPages = selectedPages.filter((sp) =>
+    selectedActivities = selectedActivities.filter((sp) =>
       sp.tags.some((t) => tags.includes(t))
     );
   }
-  selectedPages.sort(() => Math.random() - 0.5).slice(0, 5);
+  selectedActivities.sort(() => Math.random() - 0.5).slice(0, 5);
 
-  for (let page of selectedPages) {
-    page.rank = 0;
+  for (let activity of selectedActivities) {
+    activity.rank = 0;
   }
 
-  await pickerLogic(selectedPages);
+  await pickerLogic(selectedActivities);
   console.log(chalk.bgRedBright("finished"));
   return "Picker picked!!";
 };
@@ -283,14 +351,20 @@ let argv = yargs(hideBin(process.argv))
   .help("h")
   .alias("h", "help").argv;
 
-const display = async function () {
+const mainMenu = async function () {
   let whileLoop = true;
   while (whileLoop) {
     let prompt = await inquirer.prompt({
       name: "main",
       type: "list",
       message: "What do you want to do?",
-      choices: ["list", "add new page", "quit"],
+      choices: [
+        "list",
+        "add new activity",
+        "add new sheet",
+        "add new tag",
+        "quit",
+      ],
     });
 
     switch (prompt.main) {
@@ -298,8 +372,16 @@ const display = async function () {
         console.log(chalk.redBright("Byyye"));
         whileLoop = false;
         break;
-      case "add new page":
-        addPageHandler();
+      case "add new activity":
+        addActivityHandler();
+        whileLoop = false;
+        break;
+      case "add new sheet":
+        addSheetHandler();
+        whileLoop = false;
+        break;
+      case "add new tag":
+        addTagHandler();
         whileLoop = false;
         break;
       case "list":
@@ -310,24 +392,30 @@ const display = async function () {
 
 switch (argv._[0]) {
   case "list":
-    if (argv.r) {
-      console.log(displayAll(true));
-    } else {
-      console.log(displayAll());
-    }
+    console.log(displaySheet(sheets[1]));
     break;
   case "init":
-    db.data.pages = [
-      new Page(1, "Final Fantasy VI", "", "#1da1f2", [1, 2, 4]),
-      new Page(2, "Undertale", "", "#8ac76b", [2, 4]),
-      new Page(3, "Persona 5 Royal", "", "#c76b6b", [3, 4]),
-      new Page(4, "Mario", "", "#8ac76b", [2, 4]),
-      new Page(5, "Zelda", "", "#c76b6b", [3, 4]),
-      new Page(6, "Pikmin", "", "#8ac76b", [2, 4]),
-      new Page(7, "Kirby", "", "#c76b6b", [3, 4]),
-      new Page(8, "Deltarune", "", "#c76b6b", [3, 4]),
-      new Page(9, "Baten Kaitos", "", "#8ac76b", [2, 4]),
-      new Page(10, "13 sentinels", "", "#c76b6b", [3, 4]),
+    db.data.activities = [
+      new Activity(1, "Final Fantasy VI", "", "#1da1f2", [1, 2, 4], 1),
+      new Activity(2, "Undertale", "", "#8ac76b", [2, 4], 1),
+      new Activity(3, "Persona 5 Royal", "", "#c76b6b", [3, 4], 1),
+      new Activity(4, "Mario", "", "#8ac76b", [2, 4], 1),
+      new Activity(5, "Zelda", "", "#c76b6b", [3, 4], 1),
+      new Activity(6, "Pikmin", "", "#8ac76b", [2, 4], 1),
+      new Activity(7, "Kirby", "", "#c76b6b", [3, 4], 1),
+      new Activity(8, "Deltarune", "", "#c76b6b", [3, 4], 1),
+      new Activity(9, "Baten Kaitos", "", "#8ac76b", [2, 4], 1),
+      new Activity(10, "13 sentinels", "", "#c76b6b", [3, 4], 1),
+
+      new Activity(1, "Finish Delpeha", "", "#c76b6b", [], 2),
+      new Activity(2, "FInish Udemy", "", "#c76b6b", [3, 4], 2),
+      new Activity(3, "Write", "", "#8ac76b", [2, 4], 2),
+      new Activity(4, "Bookbind", "", "#c76b6b", [3, 4], 2),
+
+      new Activity(7, "Nona the Ninth", "", "#c76b6b", [3, 4], 3),
+      new Activity(8, "Dune", "", "#c76b6b", [3, 4], 3),
+      new Activity(9, "Berserk", "", "#8ac76b", [2, 4], 3),
+      new Activity(10, "Ella Minnow Pea", "", "#c76b6b", [3, 4], 3),
     ];
     db.data.tags = [
       new Tag(1, "Emulation", "#AA2FA6"),
@@ -335,21 +423,30 @@ switch (argv._[0]) {
       new Tag(3, "Modern Console", "#D4152A"),
       new Tag(4, "RPG", "#3b5998"),
     ];
-    console.log(pages);
+    db.data.sheets = [
+      new Sheet(0, "Default", "#000000"),
+      new Sheet(1, "Games", "#C069B4"),
+      new Sheet(2, "Projects", "#E0AF97"),
+      new Sheet(3, "Books", "#918280"),
+    ];
+    console.log(activities);
     console.log(tags);
     await db.write();
     break;
-  case "pages":
-    console.log({ pages });
-    console.log(pages[0].tags.map((t) => tags[t].name));
+  case "activities":
+    console.log({ activities });
+    console.log(activities[0].tags.map((t) => tags[t].name));
+    break;
+  case "all":
+    console.log(displayAll());
     break;
   case "rank":
-    await picker();
+    await picker(sheets[1]);
     await db.write();
   case "open":
     break;
   default:
-    await display();
+    await mainMenu();
 }
 
 // displayList();
