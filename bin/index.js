@@ -46,6 +46,19 @@ class Tag {
     this.color = color;
   }
 }
+//from https://stackoverflow.com/questions/57908133/splitting-an-array-up-into-chunks-of-a-given-size-with-a-minimum-chunk-size
+const chunk = (arr, size, min) => {
+  const chunks = arr.reduce(
+    (chunks, el, i) =>
+      (i % size ? chunks[chunks.length - 1].push(el) : chunks.push([el])) &&
+      chunks,
+    []
+  );
+  const l = chunks.length;
+
+  if (chunks[l - 1].length < min) chunks[l - 2].push(...chunks.pop());
+  return chunks;
+};
 
 const displayPage = function (page, index = -1) {
   let returnStr = `${chalk.hex(page.color).bold(page.name)} \t (${
@@ -55,7 +68,7 @@ const displayPage = function (page, index = -1) {
       `;
   let formattedTags = [];
   for (let tagId of page.tags) {
-    const tag = tags.find((t) => (t.id = tagId));
+    let tag = tags.find((t) => t.id === tagId);
     formattedTags.push(`${chalk.bgHex(tag.color).bold(" " + tag.name + " ")}`);
   }
 
@@ -184,15 +197,15 @@ const addPageHandler = async function () {
   }
 };
 
-const pickerLogic = async function (pagesArr) {
+const pickerPrompt = async function (pagesArr) {
   const pickLimit = pagesArr.length - 1;
-  let eliminated;
+
   let formattedList = pagesArr.map((p) => {
     return { name: p.name, value: p };
   });
 
   let prompt = await inquirer.prompt({
-    name: "main",
+    name: "value",
     type: "checkbox",
     message: "Select your favorites.",
     choices: formattedList,
@@ -203,22 +216,50 @@ const pickerLogic = async function (pagesArr) {
       return `Please select less than ${pickLimit}`;
     },
   });
+  //console.log(await prompt.value);
+  return await prompt.value;
+};
 
-  if (prompt.value.length == 1) {
-    prompt.value.rank = Math.max(...pages.map((p) => p.rank)) + 1;
+const pickerLogic = async function (pagesArr) {
+  let eliminated;
+  let winners = [];
+
+  if (pagesArr.length > 5) {
+    let chunkedPages = chunk(pagesArr, 5, 2);
+    for (let chunk of chunkedPages) {
+      let result = await pickerPrompt(chunk);
+      winners.push(...result);
+    }
   } else {
-    pickerLogic(prompt.value);
+    winners = await pickerPrompt(pagesArr);
   }
-  eliminated = pagesArr.filter((x) => !prompt.value.includes(x));
-  if (eliminated >= 2) {
-    pickerLogic(eliminated);
+  console.log("win length " + winners.length);
+
+  if (winners.length === 1) {
+    console.log("winers lenth", winners[0].rank);
+    pages.find((p) => p.id === winners[0].id).rank =
+      Math.max(...pages.map((p) => p.rank)) + 1;
+    console.log("Math Max ", Math.max(...pages.map((p) => p.rank)));
+    console.log(pages.find((p) => (p.id = winners[0].id)));
   } else {
-    prompt.value.rank = Math.max(...pages.map((p) => p.rank)) + 1;
+    await pickerLogic(winners);
+  }
+
+  eliminated = pagesArr.filter((x) => !winners.includes(x));
+
+  // console.log(eliminated);
+
+  if (eliminated.length >= 2) {
+    console.log("goin back in");
+    await pickerLogic(eliminated);
+  } else {
+    console.log("done here ", eliminated[0].rank);
+    eliminated[0].rank = Math.max(...pagesArr.map((p) => p.rank)) + 1;
+    console.log(eliminated[0].rank);
   }
 };
 
-const picker = function (restart = false, tags = null) {
-  let whileLoop = true;
+const picker = async function (tags = null) {
   let selectedPages = [...pages];
   if (tags != null) {
     selectedPages = selectedPages.filter((sp) =>
@@ -229,13 +270,12 @@ const picker = function (restart = false, tags = null) {
 
   if (restart) {
     for (let page of selectedPages) {
-      page.rank = -1;
+      page.rank = 0;
     }
   }
-
-  while (whileLoop) {
-    let batch1 = selectedPages.slice();
-  }
+  await pickerLogic(selectedPages);
+  console.log(chalk.bgRedBright("finished"));
+  return "Picker picked!!";
 };
 
 let argv = yargs(hideBin(process.argv))
@@ -311,6 +351,9 @@ switch (argv._[0]) {
     console.log({ pages });
     console.log(pages[0].tags.map((t) => tags[t].name));
     break;
+  case "rank":
+    await picker();
+    await db.write();
   case "open":
     break;
   default:
