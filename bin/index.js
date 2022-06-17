@@ -233,14 +233,10 @@ const pickerLogic = async function (pagesArr) {
   } else {
     winners = await pickerPrompt(pagesArr);
   }
-  console.log("win length " + winners.length);
 
   if (winners.length === 1) {
-    console.log("winers lenth", winners[0].rank);
     pages.find((p) => p.id === winners[0].id).rank =
       Math.max(...pages.map((p) => p.rank)) + 1;
-    console.log("Math Max ", Math.max(...pages.map((p) => p.rank)));
-    console.log(pages.find((p) => (p.id = winners[0].id)));
   } else {
     await pickerLogic(winners);
   }
@@ -250,12 +246,9 @@ const pickerLogic = async function (pagesArr) {
   // console.log(eliminated);
 
   if (eliminated.length >= 2) {
-    console.log("goin back in");
     await pickerLogic(eliminated);
   } else {
-    console.log("done here ", eliminated[0].rank);
     eliminated[0].rank = Math.max(...pagesArr.map((p) => p.rank)) + 1;
-    console.log(eliminated[0].rank);
   }
 };
 
@@ -268,11 +261,10 @@ const picker = async function (tags = null) {
   }
   selectedPages.sort(() => Math.random() - 0.5).slice(0, 5);
 
-  if (restart) {
-    for (let page of selectedPages) {
-      page.rank = 0;
-    }
+  for (let page of selectedPages) {
+    page.rank = 0;
   }
+
   await pickerLogic(selectedPages);
   console.log(chalk.bgRedBright("finished"));
   return "Picker picked!!";
