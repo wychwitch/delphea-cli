@@ -1,5 +1,5 @@
 "use strict";
-
+//TODO make a Sheets, activities, and tags picker that are independent of other functions, and can be easily reused. Activities accepts an optional sheets option
 import chalk from "chalk";
 import inquirer from "inquirer";
 import gradient from "gradient-string";
@@ -61,6 +61,54 @@ class Sheet {
     return activities.filter((a) => a.sheet === this.id);
   }
 }
+
+const selectEntities = async function (
+  entityType,
+  single = true,
+  options = undefined
+) {
+  let { activities, sheets, tags } = readDB();
+  let list = [];
+  switch (entityType) {
+    case "activities":
+      list = activities;
+      if (options) {
+        list = options.sheet.activities;
+      }
+      break;
+    case "sheets":
+      list = sheets;
+      break;
+    case "tags":
+      list = tags;
+      break;
+  }
+
+  let type = "checkbox";
+  if (single) {
+    type = "list";
+  }
+
+  if (options.limit) {
+    //construct validation function to be passed into the validate function down below
+  }
+
+  let prompt = await inquirer.prompt({
+    name: "value",
+    type: type,
+    message: "Select your favorites.",
+    choices: list,
+    // async validate(value) {
+    //   if (value.length <= pickLimit) {
+    //     return true;
+    //   }
+    //   return `Please select less than ${pickLimit}`;
+    // },
+  });
+  return prompt.value;
+};
+
+const selectTags = async function (single = true) {};
 
 //from https://stackoverflow.com/questions/57908133/splitting-an-array-up-into-chunks-of-a-given-size-with-a-minimum-chunk-size
 const chunk = (arr, size, min) => {
