@@ -18,10 +18,6 @@ const file = join(__dirname, "db.json");
 const adapter = new JSONFile(file);
 const db = new Low(adapter);
 
-await db.read();
-
-let { activities, tags, sheets } = db.data;
-
 class Activity {
   constructor(id, name, desc = "", color = "#000000", tags = [], sheet = 0) {
     this.id = id;
@@ -45,19 +41,27 @@ class Tag {
 }
 
 class Sheet {
-  constructor(id, name, color = "#000000") {
-    this.id = id;
-    this.name = name;
-    this.color = color;
+  constructor(possibleId, name, color = "#000000") {
+    if (typeof possibleId !== "number") {
+      let { id, name, color } = possibleId;
+      this.id = id;
+      this.name = name;
+      this.color = color;
+    } else {
+      this.id = possibleId;
+      this.name = name;
+      this.color = color;
+    }
   }
 
   get activities() {
-    console.log(activities);
-    console.log(activities.filter((a) => a.sheet === this.id));
+    let { activities } = db.data;
+    console.log("sending activities!");
+
     return activities.filter((a) => a.sheet === this.id);
   }
 }
-sheets = sheets.map((s) => new Sheet({ ...s }));
+
 //from https://stackoverflow.com/questions/57908133/splitting-an-array-up-into-chunks-of-a-given-size-with-a-minimum-chunk-size
 const chunk = (arr, size, min) => {
   const chunks = arr.reduce(
@@ -132,13 +136,24 @@ const addActivity = async function (activity) {
   await db.write();
 };
 
-const editActivity = function (id, name, rank, desc, color, tags) {
+const editActivity = async function (
+  id,
+  name,
+  rank,
+  desc,
+  color,
+  selectedTags
+) {
+  await db.read();
+
+  let { activities, sheets } = db.data;
+  sheets = sheets.map((s) => new Sheet(s));
   let i = activities.findIndex((p) => p.id == id);
   activities[i].name = name;
   activities[i].rank = rank;
   activities[i].desc = desc;
   activities[i].color = color;
-  activities[i].tags = tags;
+  activities[i].tags = selectedTags;
   db.write();
 };
 
@@ -182,7 +197,7 @@ const sheetListBuilder = function () {
   return choices;
 };
 
-const rankingLogic = async function (activitiesArr) {
+const rankingLogic = async function (activitiesArr, sheet) {
   let eliminated;
   let winners = [];
 
@@ -197,10 +212,10 @@ const rankingLogic = async function (activitiesArr) {
   }
 
   if (winners.length === 1) {
-    activities.find((p) => p.id === winners[0].id).rank =
-      Math.max(...activities.map((p) => p.rank)) + 1;
+    //activities.find((p) => p.id === winners[0].id).rank =
+    winners[0].rank = Math.max(...sheet.activities.map((p) => p.rank)) + 1;
   } else {
-    await rankingLogic(winners);
+    await rankingLogic(winners, sheet);
   }
 
   eliminated = activitiesArr.filter((x) => !winners.includes(x));
@@ -208,9 +223,9 @@ const rankingLogic = async function (activitiesArr) {
   // console.log(eliminated);
 
   if (eliminated.length >= 2) {
-    await rankingLogic(eliminated);
+    await rankingLogic(eliminated, sheet);
   } else {
-    eliminated[0].rank = Math.max(...activitiesArr.map((p) => p.rank)) + 1;
+    eliminated[0].rank = Math.max(...sheet.activities.map((p) => p.rank)) + 1;
   }
 };
 
@@ -238,7 +253,9 @@ const rankingPrompt = async function (activitiesArr) {
 };
 
 const rankingHandler = async function (sheet, tags = null) {
-  let selectedActivities = activities.filter((a) => a.sheet === sheet.id);
+  console.log({ sheet });
+
+  let selectedActivities = sheet.activities;
   if (tags != null) {
     selectedActivities = selectedActivities.filter((sp) =>
       sp.tags.some((t) => tags.includes(t))
@@ -250,8 +267,10 @@ const rankingHandler = async function (sheet, tags = null) {
     activity.rank = 0;
   }
 
-  await rankingLogic(selectedActivities);
-  console.log(chalk.bgRedBright("finished"));
+  await rankingLogic(selectedActivities, sheet);
+  console.log(db.data.activities);
+
+  await db.write();
   return "Picker picked!!";
 };
 
@@ -376,7 +395,8 @@ const initDB = async function () {
 
 const readDB = async function () {
   await db.read();
-  const { activities, tags, sheets } = db.data;
+  let { activities, tags, sheets } = db.data;
+  sheets = sheets.map((s) => new Sheet(s));
   return { activities, tags, sheets };
 };
 
