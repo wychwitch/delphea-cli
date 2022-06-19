@@ -62,17 +62,14 @@ class Sheet {
   }
 }
 
-const selectEntities = async function (
-  entityType,
-  single = true,
-  options = undefined
-) {
-  let { activities, sheets, tags } = readDB();
+const selectThings = async function (entityType, options = undefined) {
+  let { activities, sheets, tags } = await readDB();
   let list = [];
+  let validationFunc = () => true;
   switch (entityType) {
     case "activities":
       list = activities;
-      if (options) {
+      if (options.sheet) {
         list = options.sheet.activities;
       }
       break;
@@ -82,33 +79,50 @@ const selectEntities = async function (
     case "tags":
       list = tags;
       break;
+    case "custom":
+      list = options.choices;
+      break;
   }
 
-  let type = "checkbox";
-  if (single) {
-    type = "list";
+  console.log(sheets);
+  console.log(list);
+  list = list.map((l) => {
+    return {
+      name: l.name,
+      value: l,
+    };
+  });
+
+  console.log(list);
+
+  let promptType = "checkbox";
+  if (options.single) {
+    promptType = "list";
   }
 
   if (options.limit) {
-    //construct validation function to be passed into the validate function down below
+    validationFunc = async function (value) {
+      if (value.length <= options.limit && value.length > 0) {
+        return true;
+      } else if (!(value.length <= options.limit)) {
+        return `Please select ${options.limit} or less.`;
+      } else {
+        return "Please select at least one choice.";
+      }
+    };
   }
 
   let prompt = await inquirer.prompt({
     name: "value",
-    type: type,
-    message: "Select your favorites.",
+    type: promptType,
+    message: `${options.message}`,
     choices: list,
-    // async validate(value) {
-    //   if (value.length <= pickLimit) {
-    //     return true;
-    //   }
-    //   return `Please select less than ${pickLimit}`;
-    // },
+    async validate(value) {
+      return validationFunc(value);
+    },
   });
   return prompt.value;
 };
-
-const selectTags = async function (single = true) {};
 
 //from https://stackoverflow.com/questions/57908133/splitting-an-array-up-into-chunks-of-a-given-size-with-a-minimum-chunk-size
 const chunk = (arr, size, min) => {
@@ -224,6 +238,7 @@ const editActivityHandler = async function () {
 };
 
 const tagListBuilder = function () {
+  let { tags } = readDB();
   let choices = [];
   for (let tag of tags) {
     choices.push({
@@ -245,62 +260,52 @@ const sheetListBuilder = function () {
   return choices;
 };
 
-const rankingLogic = async function (activitiesArr, sheet) {
+const rankingProcess = async function (activitiesArr, sheet) {
   let eliminated;
   let winners = [];
 
   if (activitiesArr.length > 5) {
     let chunkedActivities = chunk(activitiesArr, 5, 2);
     for (let chunk of chunkedActivities) {
-      let result = await rankingPrompt(chunk);
+      let result = await selectThings("custom", {
+        choices: chunk,
+        limit: chunk.length - 1,
+        message: "Select your favorites.",
+      });
       winners.push(...result);
     }
   } else {
-    winners = await rankingPrompt(activitiesArr);
+    winners = await await selectThings("custom", {
+      choices: activitiesArr,
+      limit: activitiesArr.length - 1,
+      message: "Select your favorites.",
+    });
   }
 
   if (winners.length === 1) {
     //activities.find((p) => p.id === winners[0].id).rank =
     winners[0].rank = Math.max(...sheet.activities.map((p) => p.rank)) + 1;
   } else {
-    await rankingLogic(winners, sheet);
+    await rankingProcess(winners, sheet);
   }
 
   eliminated = activitiesArr.filter((x) => !winners.includes(x));
 
-  // console.log(eliminated);
-
   if (eliminated.length >= 2) {
-    await rankingLogic(eliminated, sheet);
+    await rankingProcess(eliminated, sheet);
   } else {
     eliminated[0].rank = Math.max(...sheet.activities.map((p) => p.rank)) + 1;
   }
 };
 
-const rankingPrompt = async function (activitiesArr) {
-  const pickLimit = activitiesArr.length - 1;
-
-  let formattedList = activitiesArr.map((p) => {
-    return { name: p.name, value: p };
-  });
-
-  let prompt = await inquirer.prompt({
-    name: "value",
-    type: "checkbox",
-    message: "Select your favorites.",
-    choices: formattedList,
-    async validate(value) {
-      if (value.length <= pickLimit) {
-        return true;
-      }
-      return `Please select less than ${pickLimit}`;
-    },
-  });
-  //console.log(await prompt.value);
-  return await prompt.value;
-};
-
 const rankingHandler = async function (sheet, tags = null) {
+  console.log({ sheet });
+  if (sheet === undefined) {
+    sheet = await selectThings("sheets", {
+      single: true,
+      message: "Please select sheet to rank.",
+    });
+  }
   console.log({ sheet });
 
   let selectedActivities = sheet.activities;
@@ -315,7 +320,7 @@ const rankingHandler = async function (sheet, tags = null) {
     activity.rank = 0;
   }
 
-  await rankingLogic(selectedActivities, sheet);
+  await rankingProcess(selectedActivities, sheet);
   console.log(db.data.activities);
 
   await db.write();
@@ -437,8 +442,8 @@ const initDB = async function () {
     new Sheet(2, "Projects", "#E0AF97"),
     new Sheet(3, "Books", "#918280"),
   ];
-  console.log({ activities, tags, sheets });
   await db.write();
+  console.log({ activities, tags, sheets });
 };
 
 const readDB = async function () {

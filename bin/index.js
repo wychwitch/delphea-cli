@@ -88,7 +88,7 @@ switch (argv._[0]) {
     console.log(displayAll());
     break;
   case "rank":
-    console.log(await rankingHandler(sheets[1]));
+    console.log(await rankingHandler());
   case "open":
     break;
   default:
