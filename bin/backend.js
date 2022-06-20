@@ -19,7 +19,7 @@ const adapter = new JSONFile(file);
 const db = new Low(adapter);
 
 class Activity {
-  constructor(id, name, desc = "", color = "#000000", tags = [], sheet = 0) {
+  constructor(id, name, desc = "", color = "#000000", sheet = 0) {
     this.id = id;
     this.name = name;
     this.rank = 0;
@@ -27,7 +27,6 @@ class Activity {
     this.starred = false;
     this.desc = desc;
     this.color = color;
-    this.tags = tags;
     this.sheet = sheet;
   }
 }
@@ -63,7 +62,7 @@ class Sheet {
 }
 
 const selectThings = async function (entityType, options = undefined) {
-  let { activities, sheets, tags } = await readDB();
+  let { activities, sheets } = await readDB();
   let list = [];
   let validationFunc = () => true;
   switch (entityType) {
@@ -75,9 +74,6 @@ const selectThings = async function (entityType, options = undefined) {
       break;
     case "sheets":
       list = await sheets;
-      break;
-    case "tags":
-      list = await tags;
       break;
     case "custom":
       list = options.choices;
@@ -139,7 +135,6 @@ const chunk = (arr, size, min) => {
 };
 
 const displayActivity = function (sheet, activity) {
-  const { tags } = readDB();
   const sheetColor = sheet.color;
 
   let returnStr = `${chalk.hex(sheetColor)(
@@ -149,13 +144,8 @@ const displayActivity = function (sheet, activity) {
   )} ${chalk.hex(activity.color).bold(activity.name)}\n\t${chalk.italic(
     activity.desc
   )}\n\t`;
-  let formattedTags = [];
-  for (let tagId of activity.tags) {
-    let tag = tags.find((t) => t.id === tagId);
-    formattedTags.push(`${chalk.bgHex(tag.color).bold(" " + tag.name + " ")}`);
-  }
 
-  return returnStr + formattedTags.join(", ");
+  return returnStr;
 };
 
 const displaySheet = function (sheet, reverse = false) {
@@ -199,14 +189,7 @@ const addActivity = async function (activity) {
   await db.write();
 };
 
-const editActivity = async function (
-  id,
-  name,
-  rank,
-  desc,
-  color,
-  selectedTags
-) {
+const editActivity = async function (id, name, rank, desc, color) {
   await db.read();
 
   let { activities, sheets } = db.data;
@@ -216,7 +199,6 @@ const editActivity = async function (
   activities[i].rank = rank;
   activities[i].desc = desc;
   activities[i].color = color;
-  activities[i].tags = selectedTags;
   db.write();
 };
 
@@ -236,18 +218,6 @@ const editActivityHandler = async function () {
     case "list":
       console.log(displayAll());
   }
-};
-
-const tagListBuilder = function () {
-  let { tags } = readDB();
-  let choices = [];
-  for (let tag of tags) {
-    choices.push({
-      name: ` ${chalk.bgHex(tag.color)(tag.name)} `,
-      value: tag.id,
-    });
-  }
-  return choices;
 };
 
 const sheetListBuilder = function () {
@@ -315,7 +285,7 @@ const rankingProcess = async function (activitiesArr, sheet) {
   }
 };
 
-const rankingHandler = async function (sheet, tags = null) {
+const rankingHandler = async function (sheet) {
   console.log({ sheet });
   if (sheet === undefined) {
     sheet = await selectThings("sheets", {
@@ -326,11 +296,7 @@ const rankingHandler = async function (sheet, tags = null) {
   console.log({ sheet });
 
   let selectedActivities = sheet.activities;
-  if (tags != null) {
-    selectedActivities = selectedActivities.filter((sp) =>
-      sp.tags.some((t) => tags.includes(t))
-    );
-  }
+
   selectedActivities.sort(() => Math.random() - 0.5).slice(0, 5);
 
   for (let activity of selectedActivities) {
@@ -372,12 +338,6 @@ const addActivityHandler = async function () {
         default: "#FFFFFF",
       },
       {
-        name: "tags",
-        type: "checkbox",
-        message: "Tags?",
-        choices: tagListBuilder(),
-      },
-      {
         name: "sheet",
         type: "list",
         message: "Sheet?",
@@ -396,7 +356,6 @@ const addActivityHandler = async function () {
       activityPrompt.name,
       activityPrompt.desc,
       activityPrompt.color,
-      activityPrompt.tags,
       activityPrompt.sheet
     );
 
@@ -447,12 +406,6 @@ const initDB = async function () {
     new Activity(9, "Berserk", "", "#8ac76b", [2, 4], 3),
     new Activity(10, "Ella Minnow Pea", "", "#c76b6b", [3, 4], 3),
   ];
-  db.data.tags = [
-    new Tag(1, "Emulation", "#AA2FA6"),
-    new Tag(2, "PC", "#0244EB"),
-    new Tag(3, "Modern Console", "#D4152A"),
-    new Tag(4, "RPG", "#3b5998"),
-  ];
   db.data.sheets = [
     new Sheet(0, "Default", "#000000"),
     new Sheet(1, "Games", "#C069B4"),
@@ -460,28 +413,29 @@ const initDB = async function () {
     new Sheet(3, "Books", "#918280"),
   ];
   await db.write();
-  console.log({ activities, tags, sheets });
 };
 
 const readDB = async function () {
   await db.read();
-  let { activities, tags, sheets } = db.data;
+  let { activities, sheets } = db.data;
   sheets = sheets.map((s) => new Sheet(s));
-  return { activities, tags, sheets };
+  return { activities, sheets };
 };
 
-const findHighest = async function (sheet, pickedTags = undefined) {
+const findHighest = async function (sheet) {
   let filteredList = sheet.activities;
   console.log(sheet);
   console.log(filteredList);
-
-  if (pickedTags) {
-    filteredList = filteredList.filter((a) => a.includes(pickedTags));
-    console.log("tagss");
-  }
-  //activitiesArr.filter((x) => !winners.includes(x));
-
   return returnRank(filteredList, false);
+};
+
+const showHighest = async function () {
+  const sheet = await selectThings("sheets", {
+    message: "Select sheet",
+    single: true,
+  });
+  const rank = findHighest(sheet);
+  return displayByRank(sheet, rank);
 };
 
 const addSheetHandler = function () {};
@@ -500,4 +454,5 @@ export {
   findHighest,
   selectThings,
   displayByRank,
+  showHighest,
 };

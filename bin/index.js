@@ -20,9 +20,10 @@ import {
   initDB,
   findHighest,
   selectThings,
+  showHighest,
 } from "./backend.js";
 
-const { activities, tags, sheets } = await readDB();
+const { activities, sheets } = await readDB();
 
 const mainMenu = async function () {
   let whileLoop = true;
@@ -84,7 +85,6 @@ switch (argv._[0]) {
     break;
   case "activities":
     console.log({ activities });
-    console.log(activities[0].tags.map((t) => tags[t].name));
     break;
   case "all":
     console.log(displayAll());
@@ -93,11 +93,7 @@ switch (argv._[0]) {
     console.log(await rankingHandler());
     break;
   case "show-highest":
-    console.log(
-      await findHighest(
-        await selectThings("sheets", { message: "Select sheet", single: true })
-      )
-    );
+    console.log(await showHighest());
     break;
   case "open":
     break;
