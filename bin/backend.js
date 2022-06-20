@@ -74,10 +74,10 @@ const selectThings = async function (entityType, options = undefined) {
       }
       break;
     case "sheets":
-      list = sheets;
+      list = await sheets;
       break;
     case "tags":
-      list = tags;
+      list = await tags;
       break;
     case "custom":
       list = options.choices;
@@ -138,8 +138,9 @@ const chunk = (arr, size, min) => {
   return chunks;
 };
 
-const displayActivity = function (activity) {
-  const sheetColor = sheets.find((s) => s.id === activity.sheet).color;
+const displayActivity = function (sheet, activity) {
+  const { tags } = readDB();
+  const sheetColor = sheet.color;
 
   let returnStr = `${chalk.hex(sheetColor)(
     activity.rank > 0
@@ -260,6 +261,22 @@ const sheetListBuilder = function () {
   return choices;
 };
 
+const displayByRank = async function (sheet, rank) {
+  return displayActivity(sheet.activities.find((a) => a.rank == rank));
+};
+
+const returnRank = function (activitiesArr, max = true) {
+  console.log("++++++++++++++++++++++++++");
+  console.log(activitiesArr);
+  const ranks = activitiesArr.map((a) => a.rank);
+  console.log(ranks);
+  if (max) {
+    return Math.max(...ranks);
+  } else {
+    return Math.min(...ranks);
+  }
+};
+
 const rankingProcess = async function (activitiesArr, sheet) {
   let eliminated;
   let winners = [];
@@ -284,7 +301,7 @@ const rankingProcess = async function (activitiesArr, sheet) {
 
   if (winners.length === 1) {
     //activities.find((p) => p.id === winners[0].id).rank =
-    winners[0].rank = Math.max(...sheet.activities.map((p) => p.rank)) + 1;
+    winners[0].rank = returnRank(sheet.activities) + 1;
   } else {
     await rankingProcess(winners, sheet);
   }
@@ -294,7 +311,7 @@ const rankingProcess = async function (activitiesArr, sheet) {
   if (eliminated.length >= 2) {
     await rankingProcess(eliminated, sheet);
   } else {
-    eliminated[0].rank = Math.max(...sheet.activities.map((p) => p.rank)) + 1;
+    eliminated[0].rank = returnRank(sheet.activities) + 1;
   }
 };
 
@@ -453,6 +470,20 @@ const readDB = async function () {
   return { activities, tags, sheets };
 };
 
+const findHighest = async function (sheet, pickedTags = undefined) {
+  let filteredList = sheet.activities;
+  console.log(sheet);
+  console.log(filteredList);
+
+  if (pickedTags) {
+    filteredList = filteredList.filter((a) => a.includes(pickedTags));
+    console.log("tagss");
+  }
+  //activitiesArr.filter((x) => !winners.includes(x));
+
+  return returnRank(filteredList, false);
+};
+
 const addSheetHandler = function () {};
 
 const addTagHandler = function () {};
@@ -466,4 +497,7 @@ export {
   rankingHandler,
   readDB,
   initDB,
+  findHighest,
+  selectThings,
+  displayByRank,
 };

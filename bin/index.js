@@ -18,6 +18,8 @@ import {
   rankingHandler,
   readDB,
   initDB,
+  findHighest,
+  selectThings,
 } from "./backend.js";
 
 const { activities, tags, sheets } = await readDB();
@@ -89,6 +91,14 @@ switch (argv._[0]) {
     break;
   case "rank":
     console.log(await rankingHandler());
+    break;
+  case "show-highest":
+    console.log(
+      await findHighest(
+        await selectThings("sheets", { message: "Select sheet", single: true })
+      )
+    );
+    break;
   case "open":
     break;
   default:
