@@ -240,7 +240,7 @@ const displayByRank = async function (sheet, rank) {
 
 const returnRank = function (activitiesArr, max = true, repeat = 1) {
   console.log("++++++++++++++++++++++++++");
-  const ranks = activitiesArr.map((a) => a.rank);
+  const ranks = activitiesArr.filter((a) => a.rank !== 0).map((a) => a.rank);
   console.log(ranks);
   let returnArr = [];
 
