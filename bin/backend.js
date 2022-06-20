@@ -1,5 +1,4 @@
 "use strict";
-//TODO make a Sheets, activities, and tags picker that are independent of other functions, and can be easily reused. Activities accepts an optional sheets option
 import chalk from "chalk";
 import inquirer from "inquirer";
 import gradient from "gradient-string";
@@ -143,7 +142,7 @@ const displayActivity = function (sheet, activity) {
       : "( " + chalk.italic("unranked") + " )"
   )} ${chalk.hex(activity.color).bold(activity.name)}\n\t${chalk.italic(
     activity.desc
-  )}\n\t`;
+  )}\n`;
 
   return returnStr;
 };
@@ -232,19 +231,27 @@ const sheetListBuilder = function () {
 };
 
 const displayByRank = async function (sheet, rank) {
-  return displayActivity(sheet.activities.find((a) => a.rank == rank));
+  console.log(sheet.activities.find((a) => a.rank == rank));
+  return displayActivity(
+    sheet,
+    sheet.activities.find((a) => a.rank == rank)
+  );
 };
 
-const returnRank = function (activitiesArr, max = true) {
+const returnRank = function (activitiesArr, max = true, repeat = 1) {
   console.log("++++++++++++++++++++++++++");
-  console.log(activitiesArr);
   const ranks = activitiesArr.map((a) => a.rank);
   console.log(ranks);
-  if (max) {
-    return Math.max(...ranks);
-  } else {
-    return Math.min(...ranks);
+  let returnArr = [];
+
+  for (let i = 0; i < repeat; i++) {
+    if (max) {
+      returnArr.push(Math.max(...ranks) - i);
+    } else {
+      returnArr.push(Math.min(...ranks) + i);
+    }
   }
+  return returnArr;
 };
 
 const rankingProcess = async function (activitiesArr, sheet) {
@@ -422,20 +429,20 @@ const readDB = async function () {
   return { activities, sheets };
 };
 
-const findHighest = async function (sheet) {
-  let filteredList = sheet.activities;
-  console.log(sheet);
-  console.log(filteredList);
-  return returnRank(filteredList, false);
-};
-
 const showHighest = async function () {
+  let returnStr = "";
   const sheet = await selectThings("sheets", {
     message: "Select sheet",
     single: true,
   });
-  const rank = findHighest(sheet);
-  return displayByRank(sheet, rank);
+  const rank = returnRank(sheet.activities, false, 3);
+  console.log({ rank });
+
+  for (let rnk of rank) {
+    returnStr += await displayByRank(sheet, rnk);
+  }
+
+  return returnStr;
 };
 
 const addSheetHandler = function () {};
@@ -451,7 +458,6 @@ export {
   rankingHandler,
   readDB,
   initDB,
-  findHighest,
   selectThings,
   displayByRank,
   showHighest,
