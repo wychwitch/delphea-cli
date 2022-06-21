@@ -18,23 +18,31 @@ const adapter = new JSONFile(file);
 const db = new Low(adapter);
 
 class Activity {
-  constructor(id, name, desc = "", color = "#000000", sheet = 0) {
-    this.id = id;
-    this.name = name;
-    this.rank = 0;
-    //starred is a way to display the item above all others
-    this.starred = false;
-    this.desc = desc;
-    this.color = color;
-    this.sheet = sheet;
+  constructor(possibleId, name, desc = "", color = "#000000", sheetId = 0) {
+    if (typeof possibleId !== "number") {
+      let { id, name, desc, color, sheetId } = possibleId;
+      this.id = id;
+      this.name = name;
+      this.rank = 0;
+      //starred is a way to display the item above all others
+      this.starred = false;
+      this.desc = desc;
+      this.color = color;
+      this.sheetId = sheetId;
+    } else {
+      this.id = possibleId;
+      this.name = name;
+      this.rank = 0;
+      //starred is a way to display the item above all others
+      this.starred = false;
+      this.desc = desc;
+      this.color = color;
+      this.sheetId = sheetId;
+    }
   }
-}
-
-class Tag {
-  constructor(id, name, color) {
-    this.id = id;
-    this.name = name;
-    this.color = color;
+  async getSheet() {
+    const { sheets } = await readDB();
+    return sheets.find((s) => s.id === this.sheetId);
   }
 }
 
@@ -52,11 +60,12 @@ class Sheet {
     }
   }
 
-  get activities() {
-    let { activities } = db.data;
-    console.log("sending activities!");
+  async getActivities() {
+    let { activities } = await readDB();
+    console.log({ activities });
+    console.log(this.name, ": sending activities!");
 
-    return activities.filter((a) => a.sheet === this.id);
+    return activities.filter((a) => a.sheetId === this.id);
   }
 }
 
@@ -67,8 +76,8 @@ const selectThings = async function (entityType, options = undefined) {
   switch (entityType) {
     case "activities":
       list = activities;
-      if (options.sheet) {
-        list = options.sheet.activities;
+      if (await options.sheetId) {
+        list = await options.getSheet().activities;
       }
       break;
     case "sheets":
@@ -79,8 +88,8 @@ const selectThings = async function (entityType, options = undefined) {
       break;
   }
 
-  console.log(sheets);
-  console.log(list);
+  console.log();
+  console.log(options);
   list = list.map((l) => {
     return {
       name: l.name,
@@ -91,7 +100,7 @@ const selectThings = async function (entityType, options = undefined) {
   console.log(list);
 
   let promptType = "checkbox";
-  if (options.single) {
+  if (options.single === true) {
     promptType = "list";
   }
 
@@ -133,7 +142,10 @@ const chunk = (arr, size, min) => {
   return chunks;
 };
 
-const displayActivity = function (sheet, activity) {
+const displayActivity = async function (activity) {
+  console.log(`activity: ${activity}`);
+  console.log(`activity: ${await activity.getSheet()}`);
+  const sheet = await activity.getSheet();
   const sheetColor = sheet.color;
 
   let returnStr = `${chalk.hex(sheetColor)(
@@ -148,7 +160,7 @@ const displayActivity = function (sheet, activity) {
 };
 
 const displaySheet = function (sheet, reverse = false) {
-  const unsortedActs = activities.filter((a) => a.sheet === sheet.id);
+  const unsortedActs = sheet.activities.filter((a) => a.sheetId === sheet.id);
   const sheetActivities = unsortedActs.sort((a, b) => {
     if (reverse) {
       return b.rank - a.rank;
@@ -183,51 +195,30 @@ const displayAll = function (grouped = true, reverse = false) {
   return returnStr;
 };
 
-const addActivity = async function (activity) {
-  activities.push(activity);
+const addEditActivity = async function (activity, id = undefined) {
+  const { activities } = await db.data;
+  if (id !== undefined) {
+    console.log("id isnot  undefined");
+    const i = activities.findIndex((a) => a.id === id);
+    console.log("found activity", activities[i]);
+    console.log("passed activity", activity);
+    activity.rank = activities[i].rank;
+    activities[i] = activity;
+  } else {
+    console.log("id is undefined");
+    activities.push(activity);
+  }
+  console.log(activity);
   await db.write();
 };
 
-const editActivity = async function (id, name, rank, desc, color) {
-  await db.read();
-
-  let { activities, sheets } = db.data;
-  sheets = sheets.map((s) => new Sheet(s));
-  let i = activities.findIndex((p) => p.id == id);
-  activities[i].name = name;
-  activities[i].rank = rank;
-  activities[i].desc = desc;
-  activities[i].color = color;
-  db.write();
-};
-
 const editActivityHandler = async function () {
-  let name = await inquirer.prompt({
-    name: "",
-    type: "list",
-    message: "What do you want to do?",
-    choices: ["list", "quit"],
+  const activity = await selectThings("activities", {
+    message: "Select activity to edit",
+    single: true,
   });
-
-  switch (prompt.main) {
-    case "quit":
-      console.log(chalk.redBright("Byyye"));
-      whileLoop = false;
-      break;
-    case "list":
-      console.log(displayAll());
-  }
-};
-
-const sheetListBuilder = function () {
-  let choices = [];
-  for (let sheet of sheets) {
-    choices.push({
-      name: ` ${chalk.bgHex(sheet.color)(sheet.name)} `,
-      value: sheet.id,
-    });
-  }
-  return choices;
+  console.log("returned Activity", activity);
+  return await addEditActivityHandler(activity);
 };
 
 const displayByRank = async function (sheet, rank) {
@@ -252,6 +243,17 @@ const returnRank = function (activitiesArr, max = true, repeat = 1) {
     }
   }
   return returnArr;
+};
+
+const returnNextId = async function () {
+  const { activities } = await readDB();
+  console.log("activities");
+  console.log("++++++nextid++++++++++++++++++++");
+  const ids = activities.map((a) => a.id);
+
+  console.log("ids", ids);
+
+  return Math.max(...ids) + 1;
 };
 
 const rankingProcess = async function (activitiesArr, sheet) {
@@ -311,107 +313,114 @@ const rankingHandler = async function (sheet) {
   }
 
   await rankingProcess(selectedActivities, sheet);
-  console.log(db.data.activities);
 
   await db.write();
   return "Picker picked!!";
 };
 
-const addActivityHandler = async function () {
-  let whileLoop = true;
-  const id = Math.max(...activities.map((p) => p.id));
-  while (whileLoop) {
-    let activityPrompt = await inquirer.prompt([
-      {
-        name: "name",
-        type: "input",
-        message: "Name?",
-        async validate(value) {
-          if (value.length > 0) {
-            return true;
-          }
-          return `Please enter a name.`;
-        },
+const addEditActivityHandler = async function (originalActivity = undefined) {
+  let activityPrompt = await inquirer.prompt([
+    {
+      name: "name",
+      type: "input",
+      message: "Name?",
+      default: originalActivity?.name ? originalActivity.name : "",
+      async validate(value) {
+        if (value.length > 0) {
+          return true;
+        }
+        return `Please enter a name.`;
       },
-      {
-        name: "desc",
-        type: "input",
-        message: "Description?",
-      },
-      {
-        name: "color",
-        type: "input",
-        message: "Color?",
-        default: "#FFFFFF",
-      },
-      {
-        name: "sheet",
-        type: "list",
-        message: "Sheet?",
-        choices: sheetListBuilder(),
-      },
-      {
-        name: "starred",
-        type: "confirm",
-        message: "Star?",
-        default: false,
-      },
-    ]);
+    },
+    {
+      name: "desc",
+      type: "input",
+      message: "Description?",
+      default: originalActivity?.desc ? originalActivity.desc : "",
+    },
+    {
+      name: "color",
+      type: "input",
+      message: "Color?",
+      default: originalActivity?.color ? originalActivity.color : "#FFFFFF",
+    },
+    {
+      name: "starred",
+      type: "confirm",
+      message: "Star?",
+      default: originalActivity?.starred ? originalActivity.starred : false,
+    },
+  ]);
 
-    let newActivity = new Activity(
-      id,
-      activityPrompt.name,
-      activityPrompt.desc,
-      activityPrompt.color,
-      activityPrompt.sheet
-    );
+  let selectedSheet = await selectThings("sheets", {
+    message: "Select a sheet to add the activity to",
+    default: originalActivity?.getSheet()
+      ? originalActivity.getSheet()
+      : undefined,
+    single: true,
+  });
+  console.log("activity prompt", activityPrompt);
 
-    let prompt = await inquirer.prompt({
-      name: "value",
-      type: "list",
-      message: `Is this correct?
-        ${displayActivity(newActivity)}
+  activityPrompt.id = originalActivity?.id
+    ? originalActivity.id
+    : returnNextId(await selectedSheet.getActivities());
+
+  let newActivity = new Activity(
+    await activityPrompt.id,
+    await activityPrompt.name,
+    await activityPrompt.desc,
+    await activityPrompt.color,
+    await selectedSheet.id
+  );
+
+  console.log("12", newActivity);
+
+  let prompt = await inquirer.prompt({
+    name: "value",
+    type: "list",
+    message: `Is this correct?
+        ${await displayActivity(newActivity)}
       `,
-      choices: ["Yes", "No - Redo", "No - Go Back"],
-    });
-    switch (prompt.value) {
-      case "No - Go Back":
-        console.log(chalk.redBright("Byyye"));
-        whileLoop = false;
-        break;
-      case "Yes":
-        addActivity(newActivity);
-        console.log(chalk.redBright("pushed new item!"));
-        whileLoop = false;
-        break;
-      case "No - Redo":
-        console.log(chalk.redBright("ok redoing"));
-    }
+    choices: ["Yes", "No - Redo", "No - Go Back"],
+  });
+  switch (prompt.value) {
+    case "No - Go Back":
+      return chalk.redBright("Byyye");
+    case "Yes":
+      if (originalActivity) {
+        await addEditActivity(newActivity, newActivity.id);
+      } else {
+        await addEditActivity(newActivity);
+      }
+      return chalk.redBright("pushed new item!");
+    case "No - Redo":
+      console.log(chalk.redBright("ok redoing"));
+      addEditActivityHandler(originalActivity);
   }
 };
 
 const initDB = async function () {
   db.data.activities = [
-    new Activity(1, "Final Fantasy VI", "", "#1da1f2", [1, 2, 4], 1),
-    new Activity(2, "Undertale", "", "#8ac76b", [2, 4], 1),
-    new Activity(3, "Persona 5 Royal", "", "#c76b6b", [3, 4], 1),
-    new Activity(4, "Mario", "", "#8ac76b", [2, 4], 1),
-    new Activity(5, "Zelda", "", "#c76b6b", [3, 4], 1),
-    new Activity(6, "Pikmin", "", "#8ac76b", [2, 4], 1),
-    new Activity(7, "Kirby", "", "#c76b6b", [3, 4], 1),
-    new Activity(8, "Deltarune", "", "#c76b6b", [3, 4], 1),
-    new Activity(9, "Baten Kaitos", "", "#8ac76b", [2, 4], 1),
-    new Activity(10, "13 sentinels", "", "#c76b6b", [3, 4], 1),
+    new Activity(1, "Final Fantasy VI", "", "#1da1f2", 1),
+    new Activity(2, "Undertale", "", "#8ac76b", 1),
+    new Activity(3, "Persona 5 Royal", "", "#c76b6b", 1),
+    new Activity(4, "Mario", "", "#8ac76b", 1),
+    new Activity(5, "Zelda", "", "#c76b6b", 1),
+    new Activity(6, "Pikmin", "", "#8ac76b", 1),
+    new Activity(7, "Kirby", "", "#c76b6b", 1),
+    new Activity(8, "Deltarune", "", "#c76b6b", 1),
+    new Activity(9, "Baten Kaitos", "", "#8ac76b", 1),
+    new Activity(10, "13 sentinels", "", "#c76b6b", 1),
 
-    new Activity(1, "Finish Delpeha", "", "#c76b6b", [], 2),
-    new Activity(2, "FInish Udemy", "", "#c76b6b", [3, 4], 2),
-    new Activity(3, "Write", "", "#8ac76b", [2, 4], 2),
-    new Activity(4, "Bookbind", "", "#c76b6b", [3, 4], 2),
+    new Activity(11, "Finish Delpeha", "", "#c76b6b", 2),
+    new Activity(12, "FInish Udemy", "", "#c76b6b", 2),
+    new Activity(13, "Write", "", "#8ac76b", 2),
+    new Activity(14, "Bookbind", "", "#c76b6b", 2),
 
-    new Activity(7, "Nona the Ninth", "", "#c76b6b", [3, 4], 3),
-    new Activity(8, "Dune", "", "#c76b6b", [3, 4], 3),
-    new Activity(9, "Berserk", "", "#8ac76b", [2, 4], 3),
-    new Activity(10, "Ella Minnow Pea", "", "#c76b6b", [3, 4], 3),
+    new Activity(15, "Nona the Ninth", "", "#c76b6b", 3),
+    new Activity(16, "Dune", "", "#c76b6b", 3),
+    new Activity(17, "Berserk", "", "#8ac76b", 3),
+    new Activity(18, "Ella Minnow Pea", "", "#c76b6b", 3),
   ];
   db.data.sheets = [
     new Sheet(0, "Default", "#000000"),
@@ -420,12 +429,14 @@ const initDB = async function () {
     new Sheet(3, "Books", "#918280"),
   ];
   await db.write();
+  return "initialized db";
 };
 
 const readDB = async function () {
   await db.read();
   let { activities, sheets } = db.data;
   sheets = sheets.map((s) => new Sheet(s));
+  activities = activities.map((a) => new Activity(a));
   return { activities, sheets };
 };
 
@@ -451,7 +462,8 @@ const addTagHandler = function () {};
 const displayHandler = function () {};
 
 export {
-  addActivityHandler,
+  addEditActivityHandler,
+  editActivityHandler,
   addSheetHandler,
   addTagHandler,
   displayHandler,

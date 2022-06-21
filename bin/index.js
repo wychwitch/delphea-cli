@@ -11,7 +11,7 @@ import figlet from "figlet";
 import { createSpinner } from "nanospinner";
 import { Console } from "console";
 import {
-  addActivityHandler,
+  addEditActivityHandler,
   addSheetHandler,
   addTagHandler,
   displayHandler,
@@ -20,6 +20,7 @@ import {
   initDB,
   selectThings,
   showHighest,
+  editActivityHandler,
 } from "./backend.js";
 
 const { activities, sheets } = await readDB();
@@ -81,6 +82,13 @@ switch (argv._[0]) {
     console.log(displaySheet(sheets[1]));
     break;
   case "init":
+    console.log(await initDB());
+    break;
+  case "add":
+    console.log(await addEditActivityHandler());
+    break;
+  case "edit":
+    console.log(await editActivityHandler());
     break;
   case "activities":
     console.log({ activities });
