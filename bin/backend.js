@@ -84,18 +84,22 @@ const selectThings = async function (
   let validationFunc = () => true;
   let promptType = "checkbox";
 
+  if (options?.prepend) {
+    list.push(...options.prepend);
+  }
+
   switch (entityType) {
     case "activities":
       list = activities;
       if (await options.sheetId) {
-        list = await options.getSheet().activities;
+        list.push(...(await options.getSheet().activities));
       }
       break;
     case "sheets":
-      list = await sheets;
+      list.push(...(await sheets));
       break;
     case "custom":
-      list = options.choices;
+      list.push(...options.choices);
       break;
   }
 
@@ -566,7 +570,7 @@ const pickSheetToEdit = async function () {
 };
 
 const displayHandler = async function () {
-  const sheetToDisplay = await selectThings("sheet", {
+  const sheetToDisplay = await selectThings("sheets", {
     message: "Select a sheet to display",
     prepend: { name: "All Activities", value: false },
   });
