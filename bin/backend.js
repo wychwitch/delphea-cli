@@ -164,7 +164,8 @@ const displayActivity = async function (
   displayRank = true,
   inlineSheetName = false
 ) {
-  const sheet = await activity.sheet;
+  const sheet = await getSheet(activity.sheetId);
+  console.log(sheet);
   const sheetColor = sheet.color;
 
   let returnStr = `${chalk.hex(sheetColor)(
@@ -182,7 +183,8 @@ const displayActivity = async function (
 };
 
 const displaySheet = async function (sheet, reverse = false) {
-  const unsorted = await sheet.activities;
+  const unsorted = await getActivities(sheet.id);
+  console.log(unsorted);
   const sheetActivities = unsorted
     .filter((a) => a.sheetId === sheet.id)
     .sort((a, b) => {
@@ -284,6 +286,7 @@ const returnNextId = async function (type = "activity", i = 1) {
 };
 
 const rankingProcess = async function (activitiesArr) {
+  await db.read();
   let eliminated;
   let winners = [];
 
@@ -314,9 +317,13 @@ const rankingProcess = async function (activitiesArr) {
 
   if (winners.length === 1) {
     const i = activities.findIndex((a) => a.id === winners[0].id);
-    const acts = await getActivities(winners[0].sheetId);
-    const ranks = acts.map((a) => a.rank);
-    activities[i].rank = Math.max(...ranks) + 1;
+    console.log({ i });
+
+    const acts = activities.filter((a) => a.sheetId === winners[0].sheetId);
+    activities[i].rank = activities[i].rank = returnRank(acts) + 1;
+    db.data.activities = activities;
+    await db.write();
+    console.log("activities", activities[i].name, activities[i].rank);
   } else {
     //if winners is is longer than 1, go back
     await rankingProcess(winners);
@@ -324,13 +331,18 @@ const rankingProcess = async function (activitiesArr) {
 
   eliminated = activitiesArr.filter((x) => !winners.includes(x));
 
-  if (eliminated.length >= 2) {
-    await rankingProcess(eliminated);
-  } else {
+  if (eliminated.length === 1) {
     const i = activities.findIndex((a) => a.id === eliminated[0].id);
-    const acts = await getActivities(eliminated[0].sheetId);
-    const ranks = acts.map((a) => a.rank);
-    activities[i].rank = Math.max(...ranks) + 1;
+    console.log({ i });
+
+    const acts = activities.filter((a) => a.sheetId === eliminated[0].sheetId);
+    activities[i].rank = returnRank(acts) + 1;
+    db.data.activities = activities;
+    await db.write();
+    console.log(ranks);
+    console.log("activities", activities[i].name, activities[i].rank);
+  } else {
+    await rankingProcess(eliminated);
   }
 };
 
@@ -349,15 +361,15 @@ const rankingHandler = async function (sheet = undefined) {
   }
 
   //Randomized activities
-  let activities = await sheet.activities;
-  shuffleArray(activities);
+  let filteredActivities = activities.filter((a) => a.sheetId === sheet.id);
+  shuffleArray(filteredActivities);
 
   //reset everything to 0
-  for (let activity of activities) {
+  for (let activity of filteredActivities) {
     activity.rank = 0;
   }
 
-  await rankingProcess(activities, sheet);
+  await rankingProcess(filteredActivities, sheet);
 
   await db.write();
   return "Ranking Finished!";
