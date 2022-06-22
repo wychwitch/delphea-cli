@@ -15,6 +15,21 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const file = join(__dirname, "db.json");
 const adapter = new JSONFile(file);
 const db = new Low(adapter);
+await db.read();
+let { activities, sheets } = db.data;
+
+const getSheet = async function (sheetId) {
+  await db.read();
+  let { sheets } = db.data;
+  return sheets.find((s) => s.id === sheetId);
+};
+
+const getActivities = async function (sheetId) {
+  await db.read();
+  let { activities } = db.data;
+
+  return activities.filter((a) => a.sheetId === sheetId);
+};
 
 class Activity {
   constructor(possibleId, name, desc = "", color = "#000000", sheetId = 0) {
@@ -41,12 +56,7 @@ class Activity {
   }
 
   get sheet() {
-    return this.getSheet();
-  }
-
-  async getSheet() {
-    const { sheets } = await readDB();
-    return sheets.find((s) => s.id === this.sheetId);
+    return getSheet(this.sheetId);
   }
 }
 
@@ -64,25 +74,16 @@ class Sheet {
     }
   }
   get activities() {
-    return this.getActivities();
-  }
-
-  async getActivities() {
-    let { activities } = await readDB();
-
-    return activities.filter((a) => a.sheetId === this.id);
+    return getActivities(this.id);
   }
 }
+sheets = sheets.map((s) => new Sheet(s));
+activities = activities.map((a) => new Activity(a));
 
 const selectThings = async function (
   entityType,
   options = { message: "select the thing" }
 ) {
-  let { activities, sheets } = await db.data;
-
-  activities = activities.map((a) => new Activity(a));
-  sheets = sheets.map((s) => new Sheet(s));
-
   let list = [];
   let validationFunc = () => true;
   let promptType = "checkbox";
@@ -252,19 +253,17 @@ const displayByRank = async function (sheet, rank) {
 };
 
 const returnRank = function (activitiesArr, max = true, repeat = 1) {
-  const ranks = activitiesArr.filter((a) => a.rank !== 0).map((a) => a.rank);
-  let returnArr = [];
+  const ranks = activitiesArr.map((a) => a.rank);
+  let returnstr;
 
-  for (let i = 0; i < repeat; i++) {
-    if (max) {
-      //return the lowest ranked ranks going up per loop
-      returnArr.push(Math.max(...ranks) - i);
-    } else {
-      //return the highest ranked ranks going down per loop
-      returnArr.push(Math.min(...ranks) + i);
-    }
+  if (max) {
+    //return the lowest ranked ranks going up per loop
+    returnstr = Math.max(...ranks);
+  } else {
+    //return the highest ranked ranks going down per loop
+    returnstr = Math.min(...ranks);
   }
-  return returnArr;
+  return returnstr;
 };
 
 const returnNextId = async function (type = "activity", i = 1) {
@@ -289,8 +288,10 @@ const rankingProcess = async function (activitiesArr) {
   let winners = [];
 
   //if it the list is over 5, split it into more managble chunks
+  console.log(`arrs length: ${activitiesArr.length}`);
   if (activitiesArr.length > 5) {
     let chunkedActivities = chunk(activitiesArr, 5, 2);
+    console.log({ chunkedActivities });
     for (let chunk of chunkedActivities) {
       //custom will not use the global activities or sheets, and instead use the choices arr
       let result = await selectThings("custom", {
@@ -312,10 +313,13 @@ const rankingProcess = async function (activitiesArr) {
   }
 
   if (winners.length === 1) {
-    winners[0].rank = returnRank(await winners[0].sheet.activities) + 1;
+    const i = activities.findIndex((a) => a.id === winners[0].id);
+    const acts = await getActivities(winners[0].sheetId);
+    const ranks = acts.map((a) => a.rank);
+    activities[i].rank = Math.max(...ranks) + 1;
   } else {
     //if winners is is longer than 1, go back
-    await rankingProcess(winners, winners[0].sheet);
+    await rankingProcess(winners);
   }
 
   eliminated = activitiesArr.filter((x) => !winners.includes(x));
@@ -323,22 +327,30 @@ const rankingProcess = async function (activitiesArr) {
   if (eliminated.length >= 2) {
     await rankingProcess(eliminated);
   } else {
-    eliminated[0].rank = returnRank(await eliminated[0].sheet.activities) + 1;
+    const i = activities.findIndex((a) => a.id === eliminated[0].id);
+    const acts = await getActivities(eliminated[0].sheetId);
+    const ranks = acts.map((a) => a.rank);
+    activities[i].rank = Math.max(...ranks) + 1;
   }
 };
 
-const rankingHandler = async function (sheet) {
+const rankingHandler = async function (sheet = undefined) {
   if (sheet === undefined) {
     sheet = await selectThings("sheets", {
       single: true,
       message: "Please select sheet to rank.",
     });
   }
+  function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+  }
 
   //Randomized activities
-  let activities = await sheet.activities
-    .sort(() => Math.random() - 0.5)
-    .slice(0, 5);
+  let activities = await sheet.activities;
+  shuffleArray(activities);
 
   //reset everything to 0
   for (let activity of activities) {

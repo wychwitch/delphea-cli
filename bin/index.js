@@ -28,20 +28,14 @@ import {
 const { activities, sheets } = await readDB();
 
 const mainMenu = async function () {
-  const change = function (type) {
+  const change = function (type, list = []) {
     const singleVers = type === activities ? "activity" : "sheet";
 
     return {
       name: "value",
       type: "list",
       message: "What do you want to change?",
-      choices: [
-        `add new ${singleVers}`,
-        `edit existing ${singleVers}`,
-        `delete ${singleVers}`,
-        "go back",
-        "quit",
-      ],
+      choices: list,
     };
   };
 
@@ -61,7 +55,16 @@ const mainMenu = async function () {
       await displayHandler();
       break;
     case "change activities":
-      response = await inquirer.prompt(change("activities"));
+      response = await inquirer.prompt(
+        change("activities", [
+          `add new activities`,
+          `rank activities`,
+          `edit existing activities`,
+          `delete activities`,
+          "go back",
+          "quit",
+        ])
+      );
       switch (response.value) {
         case "add new activity":
           console.log(activityManager());
@@ -72,6 +75,9 @@ const mainMenu = async function () {
         case "delete activity":
           console.log(removeThingHandler("activities"));
           break;
+        case "rank activities":
+          console.log(await rankingHandler());
+          break;
         case "go back":
           mainMenu();
           break;
@@ -80,7 +86,15 @@ const mainMenu = async function () {
       }
       break;
     case "change sheets":
-      response = await inquirer.prompt(change("activities"));
+      response = await inquirer.prompt(
+        change("sheets", [
+          `add new sheet`,
+          `edit existing sheet`,
+          `delete sheet`,
+          "go back",
+          "quit",
+        ])
+      );
       switch (response.value) {
         case "add new sheet":
           console.log(sheetManager());
