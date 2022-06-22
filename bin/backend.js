@@ -8,7 +8,6 @@ import { createSpinner } from "nanospinner";
 import { join, dirname } from "path";
 import { Low, JSONFile } from "lowdb";
 import { fileURLToPath } from "url";
-import { Console } from "console";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -40,6 +39,11 @@ class Activity {
       this.sheetId = sheetId;
     }
   }
+
+  get sheet() {
+    return this.getSheet();
+  }
+
   async getSheet() {
     const { sheets } = await readDB();
     return sheets.find((s) => s.id === this.sheetId);
@@ -59,20 +63,27 @@ class Sheet {
       this.color = color;
     }
   }
+  get activities() {
+    return this.getActivities();
+  }
 
   async getActivities() {
     let { activities } = await readDB();
-    console.log({ activities });
-    console.log(this.name, ": sending activities!");
 
     return activities.filter((a) => a.sheetId === this.id);
   }
 }
 
-const selectThings = async function (entityType, options = undefined) {
+const selectThings = async function (
+  entityType,
+  options = { message: "select the thing" }
+) {
   let { activities, sheets } = await readDB();
+
   let list = [];
   let validationFunc = () => true;
+  let promptType = "checkbox";
+
   switch (entityType) {
     case "activities":
       list = activities;
@@ -88,8 +99,7 @@ const selectThings = async function (entityType, options = undefined) {
       break;
   }
 
-  console.log();
-  console.log(options);
+  //formats the list for the prompt
   list = list.map((l) => {
     return {
       name: l.name,
@@ -97,13 +107,12 @@ const selectThings = async function (entityType, options = undefined) {
     };
   });
 
-  console.log(list);
-
-  let promptType = "checkbox";
-  if (options.single === true) {
+  //if options.single is declared and set to a truthy value
+  if (options.single) {
     promptType = "list";
   }
 
+  //if there's a limit, make the validation function test for it
   if (options.limit) {
     validationFunc = async function (value) {
       if (value.length <= options.limit && value.length > 0) {
@@ -142,31 +151,37 @@ const chunk = (arr, size, min) => {
   return chunks;
 };
 
-const displayActivity = async function (activity) {
-  console.log(`activity: ${activity}`);
-  console.log(`activity: ${await activity.getSheet()}`);
-  const sheet = await activity.getSheet();
+const displayActivity = async function (
+  activity,
+  displayRank = true,
+  inlineSheetName = false
+) {
+  const sheet = await activity.sheet;
   const sheetColor = sheet.color;
 
   let returnStr = `${chalk.hex(sheetColor)(
     activity.rank > 0
       ? chalk.bold("(" + activity.rank + ")")
-      : "( " + chalk.italic("unranked") + " )"
-  )} ${chalk.hex(activity.color).bold(activity.name)}\n\t${chalk.italic(
-    activity.desc
-  )}\n`;
+      : displayRank
+      ? "( " + chalk.italic("unranked") + " )"
+      : ""
+  )} ${chalk.hex(activity.color).bold(activity.name)} ${
+    inlineSheetName ? chalk.hex(sheetColor)("<" + sheet.name + ">") : ""
+  }
+  \n\t${chalk.italic(activity.desc)}\n`;
 
   return returnStr;
 };
 
-const displaySheet = function (sheet, reverse = false) {
-  const unsortedActs = sheet.activities.filter((a) => a.sheetId === sheet.id);
-  const sheetActivities = unsortedActs.sort((a, b) => {
-    if (reverse) {
-      return b.rank - a.rank;
-    }
-    return a.rank - b.rank;
-  });
+const displaySheet = async function (sheet, reverse = false) {
+  const sheetActivities = await sheet.activities
+    .filter((a) => a.sheetId === sheet.id)
+    .sort((a, b) => {
+      if (reverse) {
+        return b.rank - a.rank;
+      }
+      return a.rank - b.rank;
+    });
 
   let returnStr = `\n${chalk.hex(sheet.color).bold(
     figlet.textSync(sheet.name, {
@@ -175,54 +190,53 @@ const displaySheet = function (sheet, reverse = false) {
       verticalLayout: "default",
     })
   )}\n`;
+
   for (let activity of sheetActivities) {
     returnStr += `\n${displayActivity(activity)}`;
   }
   return returnStr;
 };
 
-const displayAll = function (grouped = true, reverse = false) {
+const displayAll = async function (grouped = true, reverse = false) {
+  const { sheets, activities } = await readDB();
   let returnStr = "";
   if (grouped) {
     for (let sheet of sheets) {
-      returnStr += displaySheet(sheet, reverse);
+      if ((await sheet.activities.length) > 0) {
+        returnStr += displaySheet(sheet, reverse);
+      }
     }
   } else {
     for (let activity of activities) {
-      returnStr += displayActivity(activity);
+      returnStr += displayActivity(activity, true, true);
     }
   }
   return returnStr;
 };
 
 const addEditActivity = async function (activity, id = undefined) {
-  const { activities } = await db.data;
+  let { activities } = await db.data.activities.map((a) => new Activity(a));
+
   if (id !== undefined) {
-    console.log("id isnot  undefined");
     const i = activities.findIndex((a) => a.id === id);
-    console.log("found activity", activities[i]);
-    console.log("passed activity", activity);
+
     activity.rank = activities[i].rank;
     activities[i] = activity;
   } else {
-    console.log("id is undefined");
     activities.push(activity);
   }
-  console.log(activity);
   await db.write();
 };
 
-const editActivityHandler = async function () {
+const pickActivityToEdit = async function () {
   const activity = await selectThings("activities", {
     message: "Select activity to edit",
     single: true,
   });
-  console.log("returned Activity", activity);
-  return await addEditActivityHandler(activity);
+  return await activityManager(activity);
 };
 
 const displayByRank = async function (sheet, rank) {
-  console.log(sheet.activities.find((a) => a.rank == rank));
   return displayActivity(
     sheet,
     sheet.activities.find((a) => a.rank == rank)
@@ -230,48 +244,59 @@ const displayByRank = async function (sheet, rank) {
 };
 
 const returnRank = function (activitiesArr, max = true, repeat = 1) {
-  console.log("++++++++++++++++++++++++++");
   const ranks = activitiesArr.filter((a) => a.rank !== 0).map((a) => a.rank);
-  console.log(ranks);
   let returnArr = [];
 
   for (let i = 0; i < repeat; i++) {
     if (max) {
+      //return the lowest ranked ranks going up per loop
       returnArr.push(Math.max(...ranks) - i);
     } else {
+      //return the highest ranked ranks going down per loop
       returnArr.push(Math.min(...ranks) + i);
     }
   }
   return returnArr;
 };
 
-const returnNextId = async function () {
-  const { activities } = await readDB();
-  console.log("activities");
-  console.log("++++++nextid++++++++++++++++++++");
-  const ids = activities.map((a) => a.id);
+const returnNextId = async function (type = "activity", i = 1) {
+  const { activities, sheets } = await db.data;
 
-  console.log("ids", ids);
+  let ids;
+  switch (type) {
+    case "activity":
+      ids = activities.map((a) => a.id);
+      break;
+    case "sheet":
+      ids = activities.map((s) => s.id);
+      break;
+  }
 
-  return Math.max(...ids) + 1;
+  //i is available to be changed if in another loop elsewhere, w/o needing to update list.
+  return Math.max(...ids) + i;
 };
 
-const rankingProcess = async function (activitiesArr, sheet) {
+const rankingProcess = async function (activitiesArr) {
   let eliminated;
   let winners = [];
 
+  //if it the list is over 5, split it into more managble chunks
   if (activitiesArr.length > 5) {
     let chunkedActivities = chunk(activitiesArr, 5, 2);
     for (let chunk of chunkedActivities) {
+      //custom will not use the global activities or sheets, and instead use the choices arr
       let result = await selectThings("custom", {
         choices: chunk,
         limit: chunk.length - 1,
         message: "Select your favorites.",
       });
+
+      //push winners to the winners array
       winners.push(...result);
     }
   } else {
-    winners = await await selectThings("custom", {
+    //otherwise just assign the choices directly to the winners arr
+    winners = await selectThings("custom", {
       choices: activitiesArr,
       limit: activitiesArr.length - 1,
       message: "Select your favorites.",
@@ -279,46 +304,49 @@ const rankingProcess = async function (activitiesArr, sheet) {
   }
 
   if (winners.length === 1) {
-    //activities.find((p) => p.id === winners[0].id).rank =
-    winners[0].rank = returnRank(sheet.activities) + 1;
+    winners[0].rank = returnRank(await winners[0].sheet.activities) + 1;
   } else {
-    await rankingProcess(winners, sheet);
+    //if winners is is longer than 1, go back
+    await rankingProcess(winners, winners[0].sheet);
   }
 
   eliminated = activitiesArr.filter((x) => !winners.includes(x));
 
   if (eliminated.length >= 2) {
-    await rankingProcess(eliminated, sheet);
+    await rankingProcess(eliminated);
   } else {
-    eliminated[0].rank = returnRank(sheet.activities) + 1;
+    eliminated[0].rank = returnRank(await eliminated[0].sheet.activities) + 1;
   }
 };
 
 const rankingHandler = async function (sheet) {
-  console.log({ sheet });
   if (sheet === undefined) {
     sheet = await selectThings("sheets", {
       single: true,
       message: "Please select sheet to rank.",
     });
   }
-  console.log({ sheet });
 
-  let selectedActivities = sheet.activities;
+  //Randomized activities
+  let activities = await sheet.activities
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 5);
 
-  selectedActivities.sort(() => Math.random() - 0.5).slice(0, 5);
-
-  for (let activity of selectedActivities) {
+  //reset everything to 0
+  for (let activity of activities) {
     activity.rank = 0;
   }
 
-  await rankingProcess(selectedActivities, sheet);
+  await rankingProcess(activities, sheet);
 
   await db.write();
-  return "Picker picked!!";
+  return "Ranking Finished!";
 };
-
-const addEditActivityHandler = async function (originalActivity = undefined) {
+/**
+ * @param  {} originalActivity=undefined
+ * @return string
+ */
+const activityManager = async function (originalActivity = undefined) {
   let activityPrompt = await inquirer.prompt([
     {
       name: "name",
@@ -359,11 +387,10 @@ const addEditActivityHandler = async function (originalActivity = undefined) {
       : undefined,
     single: true,
   });
-  console.log("activity prompt", activityPrompt);
 
   activityPrompt.id = originalActivity?.id
     ? originalActivity.id
-    : returnNextId(await selectedSheet.getActivities());
+    : returnNextId();
 
   let newActivity = new Activity(
     await activityPrompt.id,
@@ -372,8 +399,6 @@ const addEditActivityHandler = async function (originalActivity = undefined) {
     await activityPrompt.color,
     await selectedSheet.id
   );
-
-  console.log("12", newActivity);
 
   let prompt = await inquirer.prompt({
     name: "value",
@@ -395,7 +420,7 @@ const addEditActivityHandler = async function (originalActivity = undefined) {
       return chalk.redBright("pushed new item!");
     case "No - Redo":
       console.log(chalk.redBright("ok redoing"));
-      addEditActivityHandler(originalActivity);
+      activityManager(originalActivity);
   }
 };
 
@@ -432,6 +457,9 @@ const initDB = async function () {
   return "initialized db";
 };
 
+/**
+ * @returns {{Activity[], Sheet[]}}
+ */
 const readDB = async function () {
   await db.read();
   let { activities, sheets } = db.data;
@@ -440,13 +468,17 @@ const readDB = async function () {
   return { activities, sheets };
 };
 
-const showHighest = async function () {
+/**
+ * @param {number} num amount of activities to return, default 3
+ * @returns {string} {num} of the highest ranked in a sheet
+ */
+const showHighestRanked = async function (num = 3) {
   let returnStr = "";
   const sheet = await selectThings("sheets", {
     message: "Select sheet",
     single: true,
   });
-  const rank = returnRank(sheet.activities, false, 3);
+  const rank = returnRank(sheet.activities, false, num);
   console.log({ rank });
 
   for (let rnk of rank) {
@@ -456,21 +488,146 @@ const showHighest = async function () {
   return returnStr;
 };
 
-const addSheetHandler = function () {};
+const editSheets = async function (sheet, id) {
+  let { sheets } = await db.data.sheets.map((s) => new Sheet(s));
 
-const addTagHandler = function () {};
-const displayHandler = function () {};
+  if (id !== undefined) {
+    const i = sheets.findIndex((s) => s.id === id);
+
+    sheets[i] = sheet;
+  } else {
+    sheets.push(sheet);
+  }
+  await db.write();
+};
+
+const sheetManager = async function (originalSheet = undefined) {
+  let sheetPrompt = await inquirer.prompt([
+    {
+      name: "name",
+      type: "input",
+      message: "Name?",
+      default: originalSheet?.name ? originalSheet.name : "",
+      async validate(value) {
+        if (value.length > 0) {
+          return true;
+        }
+        return `Please enter a name.`;
+      },
+    },
+    {
+      name: "color",
+      type: "input",
+      message: "Color?",
+      default: originalSheet?.color ? originalSheet.color : "#FFFFFF",
+    },
+  ]);
+
+  sheetPrompt.id = originalSheet?.id ? originalSheet.id : returnNextId("sheet");
+
+  let newSheet = new Sheet(
+    await sheetPrompt.id,
+    await sheetPrompt.name,
+    await sheetPrompt.color
+  );
+
+  let prompt = await inquirer.prompt({
+    name: "value",
+    type: "list",
+    message: `Is this correct?
+        ${chalk.hex(newSheet.color)(newSheet.name)}
+      `,
+    choices: ["Yes", "No - Redo", "No - Go Back"],
+  });
+
+  switch (prompt.value) {
+    case "No - Go Back":
+      return chalk.redBright("Byyye");
+    case "Yes":
+      if (originalSheet) {
+        await editSheets(newActivity, newActivity.id);
+      } else {
+        await editSheets(newActivity);
+      }
+      return chalk.redBright("pushed new item!");
+    case "No - Redo":
+      console.log(chalk.redBright("ok redoing"));
+      activityManager(originalSheet);
+  }
+};
+
+const pickSheetToEdit = async function () {
+  const sheet = selectThings("sheet", {
+    message: "Select a sheet to edit.",
+    single: true,
+  });
+
+  return await sheetManager(sheet);
+};
+
+const displayHandler = async function () {
+  const sheetToDisplay = await selectThings("sheet", {
+    message: "Select a sheet to display",
+    prepend: { name: "All Activities", value: false },
+  });
+  if (sheetToDisplay === false) {
+    const grouped = await selectThings("custom", {
+      message: "Should they be grouped?",
+      single: true,
+      choices: [
+        { name: "yes", value: true },
+        { name: "no", value: false },
+      ],
+    });
+    console.log(await displayAll(grouped));
+  } else {
+    console.log(await displaySheet(sheetToDisplay));
+  }
+};
+
+const removeThingHandler = async function (type) {
+  const typeList =
+    type === "activities"
+      ? await db.data.activities.map((a) => new Activity(a))
+      : await db.data.sheets.map((s) => new Sheet(s));
+
+  const thingToRemove = selectThings(type, {
+    message: `What ${type} do you want to remove?`,
+    single: true,
+  });
+
+  const verify = inquirer.prompt({
+    name: "value",
+    type: "list",
+    message: `Are you sure you want to remove ${thingToRemove.name}?`,
+    default: "No - redo",
+    choices: ["No - redo", "No - quit", "Yes"],
+  });
+
+  switch (verify.value) {
+    case "No - redo":
+      return removeThingHandler(type);
+    case "No - quit":
+      return "Quitting!";
+    case "Yes":
+      const i = typeList.findIndex((x) => x.id === thingToRemove.id);
+      db.data[type].splice(i, 1);
+      await db.write();
+      return `Removed ${thingToRemove.name}`;
+  }
+};
 
 export {
-  addEditActivityHandler,
-  editActivityHandler,
-  addSheetHandler,
-  addTagHandler,
+  activityManager,
+  pickActivityToEdit,
+  pickSheetToEdit,
+  sheetManager,
   displayHandler,
   rankingHandler,
   readDB,
   initDB,
   selectThings,
   displayByRank,
-  showHighest,
+  showHighestRanked,
+  removeThingHandler,
 };

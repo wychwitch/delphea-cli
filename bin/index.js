@@ -11,56 +11,95 @@ import figlet from "figlet";
 import { createSpinner } from "nanospinner";
 import { Console } from "console";
 import {
-  addEditActivityHandler,
-  addSheetHandler,
-  addTagHandler,
+  activityManager,
+  pickActivityToEdit,
+  pickSheetToEdit,
+  sheetManager,
   displayHandler,
   rankingHandler,
   readDB,
   initDB,
   selectThings,
-  showHighest,
-  editActivityHandler,
+  displayByRank,
+  showHighestRanked,
+  removeThingHandler,
 } from "./backend.js";
 
 const { activities, sheets } = await readDB();
 
 const mainMenu = async function () {
-  let whileLoop = true;
-  while (whileLoop) {
-    let prompt = await inquirer.prompt({
-      name: "main",
+  const change = function (type) {
+    const singleVers = type === activities ? "activity" : "sheet";
+
+    return {
+      name: "value",
       type: "list",
-      message: "What do you want to do?",
+      message: "What do you want to change?",
       choices: [
-        "list",
-        "add new activity",
-        "add new sheet",
-        "add new tag",
+        `add new ${singleVers}`,
+        `edit existing ${singleVers}`,
+        `delete ${singleVers}`,
+        "go back",
         "quit",
       ],
-    });
+    };
+  };
 
-    switch (prompt.main) {
-      case "quit":
-        console.log(chalk.redBright("Byyye"));
-        whileLoop = false;
-        break;
-      case "add new activity":
-        addActivityHandler();
-        whileLoop = false;
-        break;
-      case "add new sheet":
-        addSheetHandler();
-        whileLoop = false;
-        break;
-      case "add new tag":
-        addTagHandler();
-        whileLoop = false;
-        break;
-      case "list":
-        console.log(displayAll());
-    }
+  let prompt = await inquirer.prompt({
+    name: "main",
+    type: "list",
+    message: "What do you want to do?",
+    choices: ["list activities", "change activities", "change sheets", "quit"],
+  });
+
+  let response;
+  switch (prompt.main) {
+    case "quit":
+      console.log(chalk.redBright("Byyye"));
+      break;
+    case "list activities":
+      await displayHandler();
+      break;
+    case "change activities":
+      response = await inquirer.prompt(change("activities"));
+      switch (response.value) {
+        case "add new activity":
+          console.log(activityManager());
+          break;
+        case "edit existing activity":
+          console.log(pickActivityToEdit());
+          break;
+        case "delete activity":
+          console.log(removeThingHandler("activities"));
+          break;
+        case "go back":
+          mainMenu();
+          break;
+        case "quit":
+          break;
+      }
+      break;
+    case "change sheets":
+      response = await inquirer.prompt(change("activities"));
+      switch (response.value) {
+        case "add new sheet":
+          console.log(sheetManager());
+          break;
+        case "edit existing sheet":
+          console.log(pickSheetToEdit());
+          break;
+        case "delete sheet":
+          console.log(removeThingHandler("sheets"));
+          break;
+        case "go back":
+          mainMenu();
+          break;
+        case "quit":
+          break;
+      }
+      break;
+    case "list":
+      console.log(displayAll());
   }
 };
 
@@ -100,7 +139,7 @@ switch (argv._[0]) {
     console.log(await rankingHandler());
     break;
   case "show-highest":
-    console.log(await showHighest());
+    console.log(await showHighestRanked());
     break;
   case "open":
     break;
