@@ -78,7 +78,10 @@ const selectThings = async function (
   entityType,
   options = { message: "select the thing" }
 ) {
-  let { activities, sheets } = await readDB();
+  let { activities, sheets } = await db.data;
+
+  activities = activities.map((a) => new Activity(a));
+  sheets = sheets.map((s) => new Sheet(s));
 
   let list = [];
   let validationFunc = () => true;
@@ -90,13 +93,13 @@ const selectThings = async function (
 
   switch (entityType) {
     case "activities":
-      list = activities;
+      list.push(...activities);
       if (await options.sheetId) {
-        list.push(...(await options.getSheet().activities));
+        list.push(...options.getSheet().activities);
       }
       break;
     case "sheets":
-      list.push(...(await sheets));
+      list.push(...sheets);
       break;
     case "custom":
       list.push(...options.choices);
@@ -178,7 +181,8 @@ const displayActivity = async function (
 };
 
 const displaySheet = async function (sheet, reverse = false) {
-  const sheetActivities = await sheet.activities
+  const unsorted = await sheet.activities;
+  const sheetActivities = unsorted
     .filter((a) => a.sheetId === sheet.id)
     .sort((a, b) => {
       if (reverse) {
@@ -196,7 +200,7 @@ const displaySheet = async function (sheet, reverse = false) {
   )}\n`;
 
   for (let activity of sheetActivities) {
-    returnStr += `\n${displayActivity(activity)}`;
+    returnStr += `\n${await displayActivity(activity)}`;
   }
   return returnStr;
 };
@@ -572,8 +576,10 @@ const pickSheetToEdit = async function () {
 const displayHandler = async function () {
   const sheetToDisplay = await selectThings("sheets", {
     message: "Select a sheet to display",
-    prepend: { name: "All Activities", value: false },
+    single: true,
+    prepend: [{ name: "All Activities", value: false }],
   });
+
   if (sheetToDisplay === false) {
     const grouped = await selectThings("custom", {
       message: "Should they be grouped?",
@@ -585,6 +591,7 @@ const displayHandler = async function () {
     });
     console.log(await displayAll(grouped));
   } else {
+    console.log({ sheetToDisplay });
     console.log(await displaySheet(sheetToDisplay));
   }
 };
