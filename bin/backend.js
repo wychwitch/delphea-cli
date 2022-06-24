@@ -187,23 +187,24 @@ const displayActivity = async function (
       : ""
   )} ${chalk.hex(activity.color).bold(activity.name)} ${
     inlineSheetName ? chalk.hex(sheetColor)("<" + sheet.name + ">") : ""
-  }
-  \n\t${chalk.italic(activity.desc)}\n`;
+  }${activity.desc !== "" ? chalk.italic("\n\t"+activity.desc) : ""}`;
 
   return returnStr;
 };
 
 const displaySheet = async function (sheet, reverse = false) {
   const unsorted = await getActivities(sheet.id);
-  console.log(unsorted);
-  const sheetActivities = unsorted
+  let sheetActivities = unsorted
     .filter((a) => a.sheetId === sheet.id)
+    .filter(a => a.rank !== 0)
     .sort((a, b) => {
       if (reverse) {
         return b.rank - a.rank;
       }
       return a.rank - b.rank;
     });
+  const unranked = unsorted.filter(a => a.rank === 0);
+  sheetActivities.push(...unranked);
 
   let returnStr = `\n${chalk.hex(sheet.color).bold(
     figlet.textSync(sheet.name, {
@@ -227,12 +228,12 @@ const displayAll = async function (grouped = true, reverse = false) {
     for (let sheet of sheets) {
       const sheetActivities = await getActivities(sheet.id);
       if ((sheetActivities.length) > 0) {
-        returnStr += displaySheet(sheet, reverse);
+        returnStr += await displaySheet(sheet, reverse);
       }
     }
   } else {
     for (let activity of activities) {
-      returnStr += displayActivity(activity, true, true);
+      returnStr += await displayActivity(activity, true, true);
     }
   }
   return returnStr;
@@ -243,9 +244,9 @@ const addEditActivity = async function (activity, editing = false) {
   let activities = await db.data.activities;
 
   if (editing) {
-    const i = activity.listIndex;
+    const i = await activity.listIndex;
 
-    activity.rank = activities[i].rank;
+    activity.rank = await activities[i].rank;
     activities[i] = activity;
   } else {
     activities.push(activity);
@@ -429,9 +430,7 @@ const activityManager = async function (originalActivity = undefined) {
 
   let selectedSheet = await selectThings("sheets", {
     message: "Select a sheet to add the activity to",
-    default: originalActivity?.getSheet()
-      ? originalActivity.getSheet()
-      : undefined,
+    default: await getSheet(originalActivity?.sheetId),
     single: true,
   });
 
@@ -441,7 +440,7 @@ const activityManager = async function (originalActivity = undefined) {
 
   let newActivity = new Activity(
     await activityPrompt.id,
-    db.data.activities.length,
+    originalActivity.listIndex,
     await activityPrompt.name,
     await activityPrompt.desc,
     await activityPrompt.color,
@@ -452,7 +451,7 @@ const activityManager = async function (originalActivity = undefined) {
     name: "value",
     type: "list",
     message: `Is this correct?
-        ${await displayActivity(newActivity)}
+        ${await displayActivity(newActivity,false,true)}
       `,
     choices: ["Yes", "No - Redo", "No - Go Back"],
   });
@@ -616,10 +615,11 @@ const pickSheetToEdit = async function () {
 };
 
 const displayHandler = async function () {
-  const sheetToDisplay = await selectThings("sheets", {
+  const nonEmptySheets = await getNonEmptySheets();
+  const sheetToDisplay = await selectThings("custom", {
     message: "Select a sheet to display",
     single: true,
-    prepend: [{ name: "All Activities", value: false }],
+    choices: [{ name: "All Activities", value: false }, ...nonEmptySheets.map(s => { return {name: s.name, value: s}})],
   });
 
   if (sheetToDisplay.value === false) {
@@ -633,8 +633,7 @@ const displayHandler = async function () {
     });
     console.log(await displayAll(grouped.value));
   } else {
-    console.log({ sheetToDisplay });
-    console.log(await displaySheet(sheetToDisplay));
+    console.log(await displaySheet(sheetToDisplay.value));
   }
 };
 
@@ -681,6 +680,19 @@ const resetIndexValues = async function (type = "activities") {
 
   await db.write();
 };
+
+const getNonEmptySheets = async function () {
+  await db.read();
+  const sheets = db.data.sheets;
+  let filteredSheets = [];
+  for (let sheet of sheets) {
+    let sheetActivities = await getActivities(sheet.id);
+    if (sheetActivities.length > 0) {
+      filteredSheets.push(sheet);
+    }
+  }
+  return filteredSheets;
+}
 
 export {
   activityManager,
