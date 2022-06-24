@@ -138,9 +138,6 @@ switch (argv._[0]) {
   case "list":
     console.log(displaySheet(sheets[1]));
     break;
-  case "init":
-    console.log(await initDB());
-    break;
   case "add":
     console.log(await addEditActivityHandler());
     break;

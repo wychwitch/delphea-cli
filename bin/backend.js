@@ -17,6 +17,7 @@ const file = join(__dirname, "db.json");
 const adapter = new JSONFile(file);
 const db = new Low(adapter);
 await db.read();
+db.data ||= { activities: [], sheets: [] };
 let { activities, sheets } = db.data;
 
 const getSheet = async function (sheetId) {
@@ -463,39 +464,6 @@ const activityManager = async function (originalActivity = undefined) {
       console.log(chalk.redBright("ok redoing"));
       activityManager(originalActivity);
   }
-};
-
-const initDB = async function () {
-  db.data.activities = [
-    new Activity(1, 0, "Final Fantasy VI", "", "#1da1f2", 1),
-    new Activity(2, 1, "Undertale", "", "#8ac76b", 1),
-    new Activity(3, 2, "Persona 5 Royal", "", "#c76b6b", 1),
-    new Activity(4, 3, "Mario", "", "#8ac76b", 1),
-    new Activity(5, 4, "Zelda", "", "#c76b6b", 1),
-    new Activity(6, 5, "Pikmin", "", "#8ac76b", 1),
-    new Activity(7, 6, "Kirby", "", "#c76b6b", 1),
-    new Activity(8, 7, "Deltarune", "", "#c76b6b", 1),
-    new Activity(9, 8, "Baten Kaitos", "", "#8ac76b", 1),
-    new Activity(10, 9, "13 sentinels", "", "#c76b6b", 1),
-
-    new Activity(11, 10, "Finish Delpeha", "", "#c76b6b", 2),
-    new Activity(12, 11, "FInish Udemy", "", "#c76b6b", 2),
-    new Activity(13, 12, "Write", "", "#8ac76b", 2),
-    new Activity(14, 13, "Bookbind", "", "#c76b6b", 2),
-
-    new Activity(15, 14, "Nona the Ninth", "", "#c76b6b", 3),
-    new Activity(16, 15, "Dune", "", "#c76b6b", 3),
-    new Activity(17, 16, "Berserk", "", "#8ac76b", 3),
-    new Activity(18, 17, "Ella Minnow Pea", "", "#c76b6b", 3),
-  ];
-  db.data.sheets = [
-    new Sheet(0, 0, "Default", "#000000"),
-    new Sheet(1, 1, "Games", "#C069B4"),
-    new Sheet(2, 2, "Projects", "#E0AF97"),
-    new Sheet(3, 3, "Books", "#918280"),
-  ];
-  await db.write();
-  return "initialized db";
 };
 
 /**
