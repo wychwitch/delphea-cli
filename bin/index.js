@@ -18,9 +18,6 @@ import {
   displayHandler,
   rankingHandler,
   readDB,
-  initDB,
-  selectThings,
-  displayByRank,
   showHighestRanked,
   removeThingHandler,
 } from "./backend.js";

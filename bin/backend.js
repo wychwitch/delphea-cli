@@ -17,7 +17,21 @@ const file = join(__dirname, "db.json");
 const adapter = new JSONFile(file);
 const db = new Low(adapter);
 await db.read();
-db.data ||= { activities: [], sheets: [] };
+if (db.data === null) {
+  db.data = {
+    activities: [],
+    sheets: [
+      {
+        id: 0,
+        listIndex: 0,
+        name: "Default",
+        color: "#000000",
+      },
+    ],
+  };
+  await db.write();
+}
+
 let { activities, sheets } = db.data;
 
 const getSheet = async function (sheetId) {
@@ -291,15 +305,16 @@ const returnNextId = async function (type = "activity", i = 1) {
   let ids;
   switch (type) {
     case "activity":
-      ids = activities.map((a) => a.id);
+      ids = await activities.map((a) => a.id);
       break;
     case "sheet":
-      ids = activities.map((s) => s.id);
+      ids = await sheets.map((s) => s.id);
       break;
   }
+  const highestId = ids?.length > 0 ? Math.max(...ids) : 0;
 
   //i is available to be changed if in another loop elsewhere, w/o needing to update list.
-  return Math.max(...ids) + i;
+  return highestId + i;
 };
 
 const rankingProcess = async function (activitiesArr) {
@@ -432,10 +447,13 @@ const activityManager = async function (originalActivity = undefined) {
   activityPrompt.id = originalActivity?.id
     ? originalActivity.id
     : returnNextId();
+  activityPrompt.listIndex = originalActivity?.listIndex
+    ? originalActivity.listIndex
+    : db.data.activities.length;
 
   let newActivity = new Activity(
     await activityPrompt.id,
-    originalActivity.listIndex,
+    await activityPrompt.listIndex,
     await activityPrompt.name,
     await activityPrompt.desc,
     await activityPrompt.color,
@@ -674,9 +692,6 @@ export {
   displayHandler,
   rankingHandler,
   readDB,
-  initDB,
-  selectThings,
-  displayByRank,
   showHighestRanked,
   removeThingHandler,
 };
