@@ -52,7 +52,11 @@ const mainMenu = async function () {
       console.log(chalk.redBright("Byyye"));
       break;
     case "list activities":
-      await displayHandler();
+      const result = await displayHandler();
+      if (typeof result !== "undefined") {
+        console.log(result);
+      }
+
       break;
     case "change activities":
       response = await inquirer.prompt(
@@ -160,3 +164,5 @@ switch (argv._[0]) {
   default:
     await mainMenu();
 }
+
+export { mainMenu };

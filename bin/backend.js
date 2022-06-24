@@ -8,6 +8,7 @@ import { createSpinner } from "nanospinner";
 import { join, dirname } from "path";
 import { Low, JSONFile } from "lowdb";
 import { fileURLToPath } from "url";
+import { mainMenu } from "./index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -187,7 +188,7 @@ const displayActivity = async function (
       : ""
   )} ${chalk.hex(activity.color).bold(activity.name)} ${
     inlineSheetName ? chalk.hex(sheetColor)("<" + sheet.name + ">") : ""
-  }${activity.desc !== "" ? chalk.italic("\n\t"+activity.desc) : ""}`;
+  }${activity.desc !== "" ? chalk.italic("\n\t" + activity.desc) : ""}`;
 
   return returnStr;
 };
@@ -196,14 +197,14 @@ const displaySheet = async function (sheet, reverse = false) {
   const unsorted = await getActivities(sheet.id);
   let sheetActivities = unsorted
     .filter((a) => a.sheetId === sheet.id)
-    .filter(a => a.rank !== 0)
+    .filter((a) => a.rank !== 0)
     .sort((a, b) => {
       if (reverse) {
         return b.rank - a.rank;
       }
       return a.rank - b.rank;
     });
-  const unranked = unsorted.filter(a => a.rank === 0);
+  const unranked = unsorted.filter((a) => a.rank === 0);
   sheetActivities.push(...unranked);
 
   let returnStr = `\n${chalk.hex(sheet.color).bold(
@@ -227,7 +228,7 @@ const displayAll = async function (grouped = true, reverse = false) {
   if (grouped) {
     for (let sheet of sheets) {
       const sheetActivities = await getActivities(sheet.id);
-      if ((sheetActivities.length) > 0) {
+      if (sheetActivities.length > 0) {
         returnStr += await displaySheet(sheet, reverse);
       }
     }
@@ -451,7 +452,7 @@ const activityManager = async function (originalActivity = undefined) {
     name: "value",
     type: "list",
     message: `Is this correct?
-        ${await displayActivity(newActivity,false,true)}
+        ${await displayActivity(newActivity, false, true)}
       `,
     choices: ["Yes", "No - Redo", "No - Go Back"],
   });
@@ -536,7 +537,7 @@ const showHighestRanked = async function (num = 3) {
 };
 
 const editSheets = async function (sheet, id) {
-  let  sheets = await db.data.sheets;
+  let sheets = await db.data.sheets;
 
   if (id !== undefined) {
     const i = sheets.findIndex((s) => s.id === id);
@@ -606,7 +607,7 @@ const sheetManager = async function (originalSheet = undefined) {
 };
 
 const pickSheetToEdit = async function () {
-  const sheet = selectThings("sheet", {
+  const sheet = await selectThings("sheets", {
     message: "Select a sheet to edit.",
     single: true,
   });
@@ -619,7 +620,14 @@ const displayHandler = async function () {
   const sheetToDisplay = await selectThings("custom", {
     message: "Select a sheet to display",
     single: true,
-    choices: [{ name: "All Activities", value: false }, ...nonEmptySheets.map(s => { return {name: s.name, value: s}})],
+    choices: [
+      { name: "All Activities", value: false },
+      ...nonEmptySheets.map((s) => {
+        return { name: s.name, value: s };
+      }),
+      { name: "go back", value: "go back" },
+      { name: "quit", value: "quit" },
+    ],
   });
 
   if (sheetToDisplay.value === false) {
@@ -631,21 +639,25 @@ const displayHandler = async function () {
         { name: "no", value: false },
       ],
     });
-    console.log(await displayAll(grouped.value));
+    return await displayAll(grouped.value);
+  } else if (sheetToDisplay.value === "go back") {
+    await mainMenu();
+  } else if (sheetToDisplay === "quit") {
+    process.exit();
   } else {
-    console.log(await displaySheet(sheetToDisplay.value));
+    return await displaySheet(sheetToDisplay.value);
   }
 };
 
 const removeThingHandler = async function (type) {
   await db.read();
   const typeList =
-    type === "activities"
-      ? await db.data.activities
-      : await db.data.sheets;
+    type === "activities" ? await db.data.activities : await db.data.sheets;
 
   const thingToRemove = await selectThings(type, {
-    message: `What ${type === "activities" ? "activity" : "sheet"} do you want to remove?`,
+    message: `What ${
+      type === "activities" ? "activity" : "sheet"
+    } do you want to remove?`,
     single: true,
   });
 
@@ -692,7 +704,7 @@ const getNonEmptySheets = async function () {
     }
   }
   return filteredSheets;
-}
+};
 
 export {
   activityManager,
