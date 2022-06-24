@@ -177,7 +177,6 @@ const displayActivity = async function (
   inlineSheetName = false
 ) {
   const sheet = await getSheet(activity.sheetId);
-  console.log(sheet);
   const sheetColor = sheet.color;
 
   let returnStr = `${chalk.hex(sheetColor)(
@@ -308,10 +307,8 @@ const rankingProcess = async function (activitiesArr) {
   let winners = [];
 
   //if it the list is over 5, split it into more managble chunks
-  console.log(`arrs length: ${activitiesArr.length}`);
   if (activitiesArr.length > 5) {
     let chunkedActivities = chunk(activitiesArr, 5, 2);
-    console.log({ chunkedActivities });
     for (let chunk of chunkedActivities) {
       //custom will not use the global activities or sheets, and instead use the choices arr
       let result = await selectThings("custom", {
@@ -334,13 +331,11 @@ const rankingProcess = async function (activitiesArr) {
 
   if (winners.length === 1) {
     const i = winners[0].listIndex;
-    console.log({ i });
 
     const acts = activities.filter((a) => a.sheetId === winners[0].sheetId);
     activities[i].rank = activities[i].rank = returnRank(acts) + 1;
     db.data.activities = activities;
     await db.write();
-    console.log("activities", activities[i].name, activities[i].rank);
   } else {
     //if winners is is longer than 1, go back
     await rankingProcess(winners);
@@ -350,13 +345,11 @@ const rankingProcess = async function (activitiesArr) {
 
   if (eliminated.length === 1) {
     const i = eliminated[0].listIndex;
-    console.log({ i });
 
     const acts = activities.filter((a) => a.sheetId === eliminated[0].sheetId);
     activities[i].rank = returnRank(acts) + 1;
     db.data.activities = activities;
     await db.write();
-    console.log("activities", activities[i].name, activities[i].rank);
   } else {
     await rankingProcess(eliminated);
   }
@@ -527,7 +520,6 @@ const showHighestRanked = async function (num = 3) {
     single: true,
   });
   const rank = returnRank(sheet.activities, false, num);
-  console.log({ rank });
 
   for (let rnk of rank) {
     returnStr += await displayByRank(sheet, rnk);
