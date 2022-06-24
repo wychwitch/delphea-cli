@@ -29,12 +29,12 @@ const { activities, sheets } = await readDB();
 
 const mainMenu = async function () {
   const change = function (type, list = []) {
-    const singleVers = type === activities ? "activity" : "sheet";
+    const singleVers = type === "activities" ? "activity" : "sheet";
 
     return {
       name: "value",
       type: "list",
-      message: "What do you want to change?",
+      message: `What ${singleVers} do you want to change?`,
       choices: list,
     };
   };
@@ -57,23 +57,23 @@ const mainMenu = async function () {
     case "change activities":
       response = await inquirer.prompt(
         change("activities", [
-          `add new activities`,
+          `add new activity`,
           `rank activities`,
-          `edit existing activities`,
-          `delete activities`,
+          `edit existing activity`,
+          "delete activity",
           "go back",
           "quit",
         ])
       );
       switch (response.value) {
         case "add new activity":
-          console.log(activityManager());
+          console.log(await activityManager());
           break;
         case "edit existing activity":
-          console.log(pickActivityToEdit());
+          console.log(await pickActivityToEdit());
           break;
         case "delete activity":
-          console.log(removeThingHandler("activities"));
+          console.log(await removeThingHandler("activities"));
           break;
         case "rank activities":
           console.log(await rankingHandler());
@@ -97,13 +97,13 @@ const mainMenu = async function () {
       );
       switch (response.value) {
         case "add new sheet":
-          console.log(sheetManager());
+          console.log(await sheetManager());
           break;
         case "edit existing sheet":
-          console.log(pickSheetToEdit());
+          console.log(await pickSheetToEdit());
           break;
         case "delete sheet":
-          console.log(removeThingHandler("sheets"));
+          console.log(await removeThingHandler("sheets"));
           break;
         case "go back":
           mainMenu();

@@ -32,10 +32,18 @@ const getActivities = async function (sheetId) {
 };
 
 class Activity {
-  constructor(possibleId, name, desc = "", color = "#000000", sheetId = 0) {
+  constructor(
+    possibleId,
+    listIndex,
+    name,
+    desc = "",
+    color = "#000000",
+    sheetId = 0
+  ) {
     if (typeof possibleId !== "number") {
-      let { id, name, desc, color, sheetId } = possibleId;
+      let { id, listIndex, name, desc, color, sheetId } = possibleId;
       this.id = id;
+      this.listIndex = listIndex;
       this.name = name;
       this.rank = 0;
       //starred is a way to display the item above all others
@@ -45,6 +53,7 @@ class Activity {
       this.sheetId = sheetId;
     } else {
       this.id = possibleId;
+      this.listIndex = listIndex;
       this.name = name;
       this.rank = 0;
       //starred is a way to display the item above all others
@@ -61,14 +70,16 @@ class Activity {
 }
 
 class Sheet {
-  constructor(possibleId, name, color = "#000000") {
+  constructor(possibleId, listIndex, name, color = "#000000") {
     if (typeof possibleId !== "number") {
-      let { id, name, color } = possibleId;
+      let { id, listIndex, name, color } = possibleId;
       this.id = id;
+      this.listIndex = listIndex;
       this.name = name;
       this.color = color;
     } else {
       this.id = possibleId;
+      this.listIndex = listIndex;
       this.name = name;
       this.color = color;
     }
@@ -209,11 +220,13 @@ const displaySheet = async function (sheet, reverse = false) {
 };
 
 const displayAll = async function (grouped = true, reverse = false) {
-  const { sheets, activities } = await readDB();
+  await db.read();
+  const { sheets, activities } = db.data;
   let returnStr = "";
   if (grouped) {
     for (let sheet of sheets) {
-      if ((await sheet.activities.length) > 0) {
+      const sheetActivities = await getActivities(sheet.id);
+      if ((sheetActivities.length) > 0) {
         returnStr += displaySheet(sheet, reverse);
       }
     }
@@ -225,11 +238,12 @@ const displayAll = async function (grouped = true, reverse = false) {
   return returnStr;
 };
 
-const addEditActivity = async function (activity, id = undefined) {
-  let { activities } = await db.data.activities.map((a) => new Activity(a));
+const addEditActivity = async function (activity, editing = false) {
+  await db.read();
+  let activities = await db.data.activities;
 
-  if (id !== undefined) {
-    const i = activities.findIndex((a) => a.id === id);
+  if (editing) {
+    const i = activity.listIndex;
 
     activity.rank = activities[i].rank;
     activities[i] = activity;
@@ -237,6 +251,7 @@ const addEditActivity = async function (activity, id = undefined) {
     activities.push(activity);
   }
   await db.write();
+  await resetIndexValues();
 };
 
 const pickActivityToEdit = async function () {
@@ -316,7 +331,7 @@ const rankingProcess = async function (activitiesArr) {
   }
 
   if (winners.length === 1) {
-    const i = activities.findIndex((a) => a.id === winners[0].id);
+    const i = winners[0].listIndex;
     console.log({ i });
 
     const acts = activities.filter((a) => a.sheetId === winners[0].sheetId);
@@ -332,14 +347,13 @@ const rankingProcess = async function (activitiesArr) {
   eliminated = activitiesArr.filter((x) => !winners.includes(x));
 
   if (eliminated.length === 1) {
-    const i = activities.findIndex((a) => a.id === eliminated[0].id);
+    const i = eliminated[0].listIndex;
     console.log({ i });
 
     const acts = activities.filter((a) => a.sheetId === eliminated[0].sheetId);
     activities[i].rank = returnRank(acts) + 1;
     db.data.activities = activities;
     await db.write();
-    console.log(ranks);
     console.log("activities", activities[i].name, activities[i].rank);
   } else {
     await rankingProcess(eliminated);
@@ -379,6 +393,7 @@ const rankingHandler = async function (sheet = undefined) {
  * @return string
  */
 const activityManager = async function (originalActivity = undefined) {
+  await db.read();
   let activityPrompt = await inquirer.prompt([
     {
       name: "name",
@@ -426,6 +441,7 @@ const activityManager = async function (originalActivity = undefined) {
 
   let newActivity = new Activity(
     await activityPrompt.id,
+    db.data.activities.length,
     await activityPrompt.name,
     await activityPrompt.desc,
     await activityPrompt.color,
@@ -458,32 +474,32 @@ const activityManager = async function (originalActivity = undefined) {
 
 const initDB = async function () {
   db.data.activities = [
-    new Activity(1, "Final Fantasy VI", "", "#1da1f2", 1),
-    new Activity(2, "Undertale", "", "#8ac76b", 1),
-    new Activity(3, "Persona 5 Royal", "", "#c76b6b", 1),
-    new Activity(4, "Mario", "", "#8ac76b", 1),
-    new Activity(5, "Zelda", "", "#c76b6b", 1),
-    new Activity(6, "Pikmin", "", "#8ac76b", 1),
-    new Activity(7, "Kirby", "", "#c76b6b", 1),
-    new Activity(8, "Deltarune", "", "#c76b6b", 1),
-    new Activity(9, "Baten Kaitos", "", "#8ac76b", 1),
-    new Activity(10, "13 sentinels", "", "#c76b6b", 1),
+    new Activity(1, 0, "Final Fantasy VI", "", "#1da1f2", 1),
+    new Activity(2, 1, "Undertale", "", "#8ac76b", 1),
+    new Activity(3, 2, "Persona 5 Royal", "", "#c76b6b", 1),
+    new Activity(4, 3, "Mario", "", "#8ac76b", 1),
+    new Activity(5, 4, "Zelda", "", "#c76b6b", 1),
+    new Activity(6, 5, "Pikmin", "", "#8ac76b", 1),
+    new Activity(7, 6, "Kirby", "", "#c76b6b", 1),
+    new Activity(8, 7, "Deltarune", "", "#c76b6b", 1),
+    new Activity(9, 8, "Baten Kaitos", "", "#8ac76b", 1),
+    new Activity(10, 9, "13 sentinels", "", "#c76b6b", 1),
 
-    new Activity(11, "Finish Delpeha", "", "#c76b6b", 2),
-    new Activity(12, "FInish Udemy", "", "#c76b6b", 2),
-    new Activity(13, "Write", "", "#8ac76b", 2),
-    new Activity(14, "Bookbind", "", "#c76b6b", 2),
+    new Activity(11, 10, "Finish Delpeha", "", "#c76b6b", 2),
+    new Activity(12, 11, "FInish Udemy", "", "#c76b6b", 2),
+    new Activity(13, 12, "Write", "", "#8ac76b", 2),
+    new Activity(14, 13, "Bookbind", "", "#c76b6b", 2),
 
-    new Activity(15, "Nona the Ninth", "", "#c76b6b", 3),
-    new Activity(16, "Dune", "", "#c76b6b", 3),
-    new Activity(17, "Berserk", "", "#8ac76b", 3),
-    new Activity(18, "Ella Minnow Pea", "", "#c76b6b", 3),
+    new Activity(15, 14, "Nona the Ninth", "", "#c76b6b", 3),
+    new Activity(16, 15, "Dune", "", "#c76b6b", 3),
+    new Activity(17, 16, "Berserk", "", "#8ac76b", 3),
+    new Activity(18, 17, "Ella Minnow Pea", "", "#c76b6b", 3),
   ];
   db.data.sheets = [
-    new Sheet(0, "Default", "#000000"),
-    new Sheet(1, "Games", "#C069B4"),
-    new Sheet(2, "Projects", "#E0AF97"),
-    new Sheet(3, "Books", "#918280"),
+    new Sheet(0, 0, "Default", "#000000"),
+    new Sheet(1, 1, "Games", "#C069B4"),
+    new Sheet(2, 2, "Projects", "#E0AF97"),
+    new Sheet(3, 3, "Books", "#918280"),
   ];
   await db.write();
   return "initialized db";
@@ -521,7 +537,7 @@ const showHighestRanked = async function (num = 3) {
 };
 
 const editSheets = async function (sheet, id) {
-  let { sheets } = await db.data.sheets.map((s) => new Sheet(s));
+  let  sheets = await db.data.sheets;
 
   if (id !== undefined) {
     const i = sheets.findIndex((s) => s.id === id);
@@ -534,6 +550,7 @@ const editSheets = async function (sheet, id) {
 };
 
 const sheetManager = async function (originalSheet = undefined) {
+  await db.read();
   let sheetPrompt = await inquirer.prompt([
     {
       name: "name",
@@ -559,6 +576,7 @@ const sheetManager = async function (originalSheet = undefined) {
 
   let newSheet = new Sheet(
     await sheetPrompt.id,
+    db.data.sheets.length,
     await sheetPrompt.name,
     await sheetPrompt.color
   );
@@ -577,9 +595,9 @@ const sheetManager = async function (originalSheet = undefined) {
       return chalk.redBright("Byyye");
     case "Yes":
       if (originalSheet) {
-        await editSheets(newActivity, newActivity.id);
+        await editSheets(newSheet, newSheet.id);
       } else {
-        await editSheets(newActivity);
+        await editSheets(newSheet);
       }
       return chalk.redBright("pushed new item!");
     case "No - Redo":
@@ -604,7 +622,7 @@ const displayHandler = async function () {
     prepend: [{ name: "All Activities", value: false }],
   });
 
-  if (sheetToDisplay === false) {
+  if (sheetToDisplay.value === false) {
     const grouped = await selectThings("custom", {
       message: "Should they be grouped?",
       single: true,
@@ -613,7 +631,7 @@ const displayHandler = async function () {
         { name: "no", value: false },
       ],
     });
-    console.log(await displayAll(grouped));
+    console.log(await displayAll(grouped.value));
   } else {
     console.log({ sheetToDisplay });
     console.log(await displaySheet(sheetToDisplay));
@@ -621,17 +639,18 @@ const displayHandler = async function () {
 };
 
 const removeThingHandler = async function (type) {
+  await db.read();
   const typeList =
     type === "activities"
-      ? await db.data.activities.map((a) => new Activity(a))
-      : await db.data.sheets.map((s) => new Sheet(s));
+      ? await db.data.activities
+      : await db.data.sheets;
 
-  const thingToRemove = selectThings(type, {
-    message: `What ${type} do you want to remove?`,
+  const thingToRemove = await selectThings(type, {
+    message: `What ${type === "activities" ? "activity" : "sheet"} do you want to remove?`,
     single: true,
   });
 
-  const verify = inquirer.prompt({
+  const verify = await inquirer.prompt({
     name: "value",
     type: "list",
     message: `Are you sure you want to remove ${thingToRemove.name}?`,
@@ -645,11 +664,22 @@ const removeThingHandler = async function (type) {
     case "No - quit":
       return "Quitting!";
     case "Yes":
-      const i = typeList.findIndex((x) => x.id === thingToRemove.id);
+      const i = thingToRemove.listIndex;
       db.data[type].splice(i, 1);
       await db.write();
+      await resetIndexValues();
       return `Removed ${thingToRemove.name}`;
   }
+};
+
+const resetIndexValues = async function (type = "activities") {
+  await db.read();
+  let entities = type === "activities" ? db.data.activities : db.data.sheets;
+  for (let i = 0; i < entities.length; i++) {
+    entities[i].listIndex = i;
+  }
+
+  await db.write();
 };
 
 export {
