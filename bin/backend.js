@@ -404,6 +404,12 @@ const rankingHandler = async function (sheet = undefined) {
  * @return string
  */
 const activityManager = async function (originalActivity = undefined) {
+  if (originalActivity) {
+    console.log(chalk.redBright("Editing activity!"));
+  } else {
+    console.log(chalk.redBright("Adding new Activity!"));
+  }
+
   await db.read();
   let activityPrompt = await inquirer.prompt([
     {
@@ -528,6 +534,11 @@ const editSheets = async function (sheet, id) {
 };
 
 const sheetManager = async function (originalSheet = undefined) {
+  if (originalSheet) {
+    console.log(chalk.redBright("Editing sheet!"));
+  } else {
+    console.log(chalk.redBright("Adding new sheet!"));
+  }
   await db.read();
   let sheetPrompt = await inquirer.prompt([
     {
@@ -684,6 +695,26 @@ const getNonEmptySheets = async function () {
   return filteredSheets;
 };
 
+const getSheetByName = async function (sheetName) {
+  await db.read();
+  for (let sheet of sheets) {
+    if (sheet.name.toLowerCase() === sheetName.toLowerCase()) {
+      const sheetActivities = await getActivities(sheet.id);
+      if (sheetActivities.length === 0) {
+        console.log(chalk.redBright(`${sheetName} has no activities.`));
+        process.exit(1);
+      }
+      return sheet;
+    }
+  }
+  console.log(
+    chalk.redBright(
+      `Could not find sheet by the name ${sheetName}, is it spelled correctly?`
+    )
+  );
+  process.exit(1);
+};
+
 export {
   activityManager,
   pickActivityToEdit,
@@ -694,4 +725,6 @@ export {
   readDB,
   showHighestRanked,
   removeThingHandler,
+  getSheetByName,
+  displaySheet,
 };

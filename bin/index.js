@@ -20,6 +20,8 @@ import {
   readDB,
   showHighestRanked,
   removeThingHandler,
+  displaySheet,
+  getSheetByName,
 } from "./backend.js";
 
 const { activities, sheets } = await readDB();
@@ -120,19 +122,13 @@ const mainMenu = async function () {
 
 let argv = yargs(hideBin(process.argv))
   .scriptName("delphea")
-  .usage("$0 [command] [options]", "runs the delphea command")
+  .usage("$0", "runs the delphea command")
   .command("list [sheet] [options]", "Prints list of items", {
     reverse: {
       alias: "r",
       default: false,
       type: "boolean",
       describe: "Reverses the order of the list(s)",
-    },
-    nogroup: {
-      alias: "g",
-      default: false,
-      type: "boolean",
-      describe: "Doesn't group by names",
     },
   })
   .command("add [options]", "add the activity or sheet", {
@@ -159,18 +155,50 @@ let argv = yargs(hideBin(process.argv))
     });
   })
   .alias("a", "add")
+  .alias("s", "sheet")
+  .alias("r", "reverse")
   .help("h")
   .alias("h", "help").argv;
 console.log(argv);
 
-switch (typeof argv.list) {
-  case "string":
-}
-switch (typeof argv.add) {
-}
-switch (typeof argv.remove) {
-}
-switch (typeof argv.rank) {
+switch (argv._[0]) {
+  case "list":
+    if (argv.sheet) {
+      console.log(
+        await displaySheet(await getSheetByName(argv.sheet), argv.reverse)
+      );
+    } else {
+      console.log(await displayHandler());
+    }
+    break;
+  case "a":
+  case "add":
+    if (argv.sheet) {
+      console.log(await sheetManager());
+    } else {
+      console.log(await activityManager());
+    }
+    break;
+  case "e":
+  case "edit":
+    if (argv.sheet) {
+      console.log(await sheetManager());
+    } else {
+      console.log(await activityManager());
+    }
+    break;
+  case "r":
+  case "remove":
+  case "d":
+  case "delete":
+    const type = argv?.sheet ? "sheets" : "activities";
+    console.log(await removeThingHandler(type));
+    break;
+  case "rank":
+    console.log(await rankingHandler(await getSheetByName(argv.sheet)));
+    break;
+  default:
+    await mainMenu();
 }
 
 export { mainMenu };
