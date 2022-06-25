@@ -120,43 +120,57 @@ const mainMenu = async function () {
 
 let argv = yargs(hideBin(process.argv))
   .scriptName("delphea")
-  .usage("Usage: $0 <command> [options]")
-  .command("list", "Prints list of items")
-  .option("reverse", {
-    alias: "r",
-    default: false,
-    type: "boolean",
+  .usage("$0 [command] [options]", "runs the delphea command")
+  .command("list [sheet] [options]", "Prints list of items", {
+    reverse: {
+      alias: "r",
+      default: false,
+      type: "boolean",
+      describe: "Reverses the order of the list(s)",
+    },
+    nogroup: {
+      alias: "g",
+      default: false,
+      type: "boolean",
+      describe: "Doesn't group by names",
+    },
   })
-  .command("init", "Initializes (developer)")
+  .command("add [options]", "add the activity or sheet", {
+    sheet: {
+      alias: "s",
+      default: false,
+      type: "boolean",
+      describe: "add sheet",
+    },
+  })
+  .command("remove [options]", "remove the activity or sheet", {
+    sheet: {
+      alias: "s",
+      default: false,
+      type: "boolean",
+      describe: "add sheet",
+    },
+  })
+  .command("rank <sheet>", "rank the sheet", (yargs) => {
+    yargs.positional("sheet", {
+      describe: "the sheet to rank",
+      type: "string",
+      demandOption: true,
+    });
+  })
+  .alias("a", "add")
   .help("h")
   .alias("h", "help").argv;
+console.log(argv);
 
-switch (argv._[0]) {
-  case "list":
-    console.log(displaySheet(sheets[1]));
-    break;
-  case "add":
-    console.log(await addEditActivityHandler());
-    break;
-  case "edit":
-    console.log(await editActivityHandler());
-    break;
-  case "activities":
-    console.log({ activities });
-    break;
-  case "all":
-    console.log(displayAll());
-    break;
-  case "rank":
-    console.log(await rankingHandler());
-    break;
-  case "show-highest":
-    console.log(await showHighestRanked());
-    break;
-  case "open":
-    break;
-  default:
-    await mainMenu();
+switch (typeof argv.list) {
+  case "string":
+}
+switch (typeof argv.add) {
+}
+switch (typeof argv.remove) {
+}
+switch (typeof argv.rank) {
 }
 
 export { mainMenu };
