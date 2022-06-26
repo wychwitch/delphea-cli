@@ -5,11 +5,6 @@ import chalk from "chalk";
 import inquirer from "inquirer";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
-import gradient from "gradient-string";
-import chalkAnimation from "chalk-animation";
-import figlet from "figlet";
-import { createSpinner } from "nanospinner";
-import { Console } from "console";
 import {
   activityManager,
   pickActivityToEdit,
@@ -23,8 +18,6 @@ import {
   displaySheet,
   getSheetByName,
 } from "./backend.js";
-
-const { activities, sheets } = await readDB();
 
 const mainMenu = async function () {
   const change = function (type, list = []) {
@@ -122,6 +115,79 @@ const mainMenu = async function () {
 
 let argv = yargs(hideBin(process.argv))
   .scriptName("delphea")
+  .command("$0 [command] [option]", "Runs the command", (yargs) => {
+    yargs
+      .positional("command", {
+        describe: "Commands to run.",
+        choices: [
+          "list",
+          "l",
+          "add",
+          "a",
+          "delete",
+          "d",
+          "edit",
+          "e",
+          "rank",
+          "r",
+        ],
+      })
+      .positional("option", {
+        describe: "Option for the [command]",
+        type: "string",
+      });
+  })
+  .option("reverse", {
+    alias: "r",
+    boolean: true,
+    default: false,
+    describe: "Reverses list",
+  })
+  .option("sheet", {
+    alias: "s",
+    boolean: true,
+    default: false,
+    describe: "Makes command process on sheets",
+  })
+  .option("nogroup", {
+    alias: "g",
+    boolean: true,
+    default: false,
+    describe: "Disables grouping",
+  })
+  .help("h").argv;
+
+console.log(argv);
+
+switch (argv.command) {
+  case "l":
+  case "list":
+    if (argv.option) {
+      console.log(await displaySheet(await getSheetByName(argv.option)));
+    } else {
+      console.log(await displayHandler());
+    }
+    break;
+  case "a":
+  case "add":
+    console.log("Add COmmand goes here");
+    break;
+  case "d":
+  case "delete":
+    console.log("delete COmmand goes here");
+    break;
+  case "e":
+  case "edit":
+    console.log("Edit COmmand goes here");
+    break;
+  case "r":
+  case "rank":
+    console.log("rank COmmand goes here");
+    break;
+}
+/*
+let argv = yargs(hideBin(process.argv))
+  .scriptName("delphea")
   .usage("$0", "runs the delphea command")
   .command("list [sheet] [options]", "Prints list of items", {
     reverse: {
@@ -199,6 +265,6 @@ switch (argv._[0]) {
     break;
   default:
     await mainMenu();
-}
+}*/
 
 export { mainMenu };
