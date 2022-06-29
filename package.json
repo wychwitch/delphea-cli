@@ -1,7 +1,7 @@
 {
   "name": "delphea-cli",
   "version": "1.0.0",
-  "description": "A command-line implementation of my delphea idea, since I still have a bit to go to make an MVC site",
+  "description": "A command-line application to help combat decision paralysis",
   "main": "./bin/index.js",
   "type": "module",
   "scripts": {

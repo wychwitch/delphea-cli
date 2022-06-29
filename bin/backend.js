@@ -502,7 +502,7 @@ const readDB = async function () {
  * @param {number} num amount of activities to return, default 3
  * @returns {string} {num} of the highest ranked in a sheet
  */
-const showHighestRanked = async function (num = 3) {
+const showHighestRanked = async function (num = 5) {
   let returnStr = "";
   const sheet = await selectThings("sheets", {
     message: "Select sheet",
