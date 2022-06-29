@@ -626,10 +626,12 @@ const displayHandler = async function () {
       ],
     });
     return await displayAll(grouped.value);
-  } else if (sheetToDisplay.value === "go back") {
+  }
+
+  if (sheetToDisplay.value === "go back") {
     await mainMenu();
-  } else if (sheetToDisplay === "quit") {
-    process.exit();
+  } else if (sheetToDisplay.value === "quit") {
+    return "Quitting!";
   } else {
     return await displaySheet(sheetToDisplay.value);
   }

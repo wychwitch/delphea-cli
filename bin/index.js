@@ -130,6 +130,8 @@ let argv = yargs(hideBin(process.argv))
           "e",
           "rank",
           "r",
+          "top",
+          "t",
         ],
       })
       .positional("option", {
@@ -170,101 +172,34 @@ switch (argv.command) {
     break;
   case "a":
   case "add":
-    console.log("Add COmmand goes here");
+    if (argv.sheet) {
+      console.log(await sheetManager());
+    } else {
+      console.log(await activityManager());
+    }
     break;
   case "d":
   case "delete":
-    console.log("delete COmmand goes here");
+    const delType = argv.sheet ? "sheets" : "activities";
+    console.log(await removeThingHandler(delType));
     break;
   case "e":
   case "edit":
-    console.log("Edit COmmand goes here");
+    console.log(
+      argv.sheet ? await pickSheetToEdit() : await pickActivityToEdit()
+    );
     break;
   case "r":
   case "rank":
-    console.log("rank COmmand goes here");
+    console.log(
+      argv.option
+        ? await rankingHandler(getSheetByName(argv.option))
+        : await rankingHandler()
+    );
+  case "t":
+  case "top":
+    console.log(await showHighestRanked(5));
     break;
 }
-/*
-let argv = yargs(hideBin(process.argv))
-  .scriptName("delphea")
-  .usage("$0", "runs the delphea command")
-  .command("list [sheet] [options]", "Prints list of items", {
-    reverse: {
-      alias: "r",
-      default: false,
-      type: "boolean",
-      describe: "Reverses the order of the list(s)",
-    },
-  })
-  .command("add [options]", "add the activity or sheet", {
-    sheet: {
-      alias: "s",
-      default: false,
-      type: "boolean",
-      describe: "add sheet",
-    },
-  })
-  .command("remove [options]", "remove the activity or sheet", {
-    sheet: {
-      alias: "s",
-      default: false,
-      type: "boolean",
-      describe: "add sheet",
-    },
-  })
-  .command("rank <sheet>", "rank the sheet", (yargs) => {
-    yargs.positional("sheet", {
-      describe: "the sheet to rank",
-      type: "string",
-      demandOption: true,
-    });
-  })
-  .alias("a", "add")
-  .alias("s", "sheet")
-  .alias("r", "reverse")
-  .help("h")
-  .alias("h", "help").argv;
-console.log(argv);
-
-switch (argv._[0]) {
-  case "list":
-    if (argv.sheet) {
-      console.log(
-        await displaySheet(await getSheetByName(argv.sheet), argv.reverse)
-      );
-    } else {
-      console.log(await displayHandler());
-    }
-    break;
-  case "a":
-  case "add":
-    if (argv.sheet) {
-      console.log(await sheetManager());
-    } else {
-      console.log(await activityManager());
-    }
-    break;
-  case "e":
-  case "edit":
-    if (argv.sheet) {
-      console.log(await sheetManager());
-    } else {
-      console.log(await activityManager());
-    }
-    break;
-  case "r":
-  case "remove":
-  case "d":
-  case "delete":
-    const type = argv?.sheet ? "sheets" : "activities";
-    console.log(await removeThingHandler(type));
-    break;
-  case "rank":
-    console.log(await rankingHandler(await getSheetByName(argv.sheet)));
-    break;
-  default:
-    await mainMenu();
-}*/
 
 export { mainMenu };
