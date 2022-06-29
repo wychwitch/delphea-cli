@@ -159,8 +159,6 @@ let argv = yargs(hideBin(process.argv))
   })
   .help("h").argv;
 
-console.log(argv);
-
 switch (argv.command) {
   case "l":
   case "list":
@@ -200,6 +198,8 @@ switch (argv.command) {
   case "top":
     console.log(await showHighestRanked(5));
     break;
+  default:
+    mainMenu();
 }
 
 export { mainMenu };
