@@ -1,6 +1,6 @@
 {
   "name": "delphea-cli",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A command-line application to help combat decision paralysis",
   "main": "./bin/index.js",
   "type": "module",
