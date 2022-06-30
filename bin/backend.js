@@ -220,7 +220,7 @@ const displaySheet = async function (sheet, reverse = false) {
 
   let returnStr = `\n${chalk.hex(sheet.color).bold(
     figlet.textSync(sheet.name, {
-      font: "big",
+      font: "Big",
       horizontalLayout: "default",
       verticalLayout: "default",
     })
