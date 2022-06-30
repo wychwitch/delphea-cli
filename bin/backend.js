@@ -245,7 +245,7 @@ const displayAll = async function (grouped = true, reverse = false) {
     }
   } else {
     for (let activity of activities) {
-      returnStr += await displayActivity(activity, true, true);
+      returnStr += (await displayActivity(activity, true, true)) + "\n";
     }
   }
   return returnStr;
