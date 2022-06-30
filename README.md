@@ -3,6 +3,8 @@ Delphea is a tool I made to help my analysis paralysis that affects me due to my
 
 I have plans to make a web app of this eventually, but for now it's a simple but powerful cli program. I personally recommend using it on a remote server you ssh to, rather than using it locally.
 
+This has only been tested in node 18 and up, it doesn't work in node 16 at the moment.
+
 ## Installation
 
 install using `npm i delphea-cli -g`
